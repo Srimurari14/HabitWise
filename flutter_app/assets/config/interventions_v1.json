@@ -1,0 +1,193 @@
+{
+  "version": 2,
+  "interventions": [
+    {
+      "id": "permission-to-eat", "title": "Make food the plan", "minutes": 0,
+      "whyLine": "Physical hunger calls for nourishment, not a craving-resistance exercise.",
+      "steps": ["Choose an adequate meal or satisfying snack you can access now.", "Include more than one sustaining component when practical, such as carbohydrate plus protein or fat.", "Eat enough to address the broad physical hunger rather than chasing one specific taste.", "Return only if another check-in would be useful. Do not skip or compensate for this food later."],
+      "swaps": ["A sandwich or wrap", "Yogurt with cereal or granola", "Toast with eggs, cheese, or nut or seed butter", "Leftovers or a ready meal", "A familiar substantial snack"],
+      "tags": ["food", "permission"], "nonLearnable": true, "timerAllowed": false
+    },
+    {
+      "id": "steady-snack", "title": "Build a steady snack", "minutes": 0,
+      "whyLine": "A practical snack can meet returning appetite before it becomes an all-or-nothing emergency.",
+      "steps": ["Pick one easy energy source you will genuinely eat.", "Add staying power if it is accessible, such as protein, fat, or fiber.", "Have enough to address the physical need; HabitWise does not prescribe portions.", "After nourishment, re-rate the specific craving instead of assuming it still needs to be followed."],
+      "swaps": ["Crackers and cheese or hummus", "Fruit and nut or seed butter", "Trail mix", "A smoothie", "A snack plate with familiar foods"],
+      "tags": ["food", "fuel"], "nonLearnable": true, "timerAllowed": false
+    },
+    {
+      "id": "wear-off-meal", "title": "Support the wear-off window", "minutes": 0,
+      "whyLine": "You reported that hunger rises as medication wears off. That pattern is a cue to plan nourishment, not to fight your appetite.",
+      "steps": ["Treat broad physical hunger as real and choose a balanced, low-friction meal or snack.", "Use an option that does not require many preparation decisions.", "After eating, reassess the specific craving rather than automatically following it.", "For disruptive or unexpected appetite changes, contact your prescriber. HabitWise will not suggest dose or timing changes."],
+      "swaps": ["A prepared meal", "A substantial snack plate", "A frozen or shelf-stable meal", "A sandwich or wrap", "A familiar balanced snack"],
+      "tags": ["food", "medication-context", "fuel"], "nonLearnable": true, "timerAllowed": false
+    },
+    {
+      "id": "glucose-safety-exit", "title": "Use your personal safety plan", "minutes": 0,
+      "whyLine": "Possible glucose warning signs need your established medical plan, not a craving exercise.",
+      "steps": ["Stop this flow.", "Follow the glucose plan provided by your care team, if you have one.", "Seek urgent help for severe symptoms, loss of consciousness, seizure, or if you cannot keep yourself safe."],
+      "swaps": [], "tags": ["safety", "medical-exit"], "nonLearnable": true, "timerAllowed": false
+    },
+    {
+      "id": "permission-and-support", "title": "Choose nourishment and support", "minutes": 0,
+      "whyLine": "When restriction or compensation is present, delay and resistance tools can reinforce the wrong pattern.",
+      "steps": ["Skip the timer and choose nourishment.", "Contact a trusted support person or care professional if you can.", "Use emergency or crisis support if you may be in immediate danger."],
+      "swaps": ["A familiar safe food", "A supported meal", "Something easy to prepare", "The food you want"],
+      "tags": ["food", "permission", "support"], "nonLearnable": true, "timerAllowed": false
+    },
+    {
+      "id": "body-signal-reset", "title": "Separate hunger from the specific urge", "minutes": 7,
+      "whyLine": "A short body check can identify genuine hunger without automatically obeying a cue for one specific food.",
+      "steps": ["Move away from the craved food, delivery screen, or food cue.", "Check for broad hunger: would several ordinary meals or snacks sound useful right now?", "Take seven low-demand minutes with water only if thirsty, a quiet seat, or a short walk.", "Re-rate the specific craving. If broad physical hunger is now clear, choose an adequate meal or balanced snack."],
+      "swaps": ["Sit in another room", "Close the delivery app", "Take a short walk", "Choose a balanced meal only if genuine hunger is present"],
+      "tags": ["body-check", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "rest-and-fuel", "title": "Reset low energy before deciding", "minutes": 7,
+      "whyLine": "Fatigue can amplify the fastest familiar reward even when the specific food is not what your body needs.",
+      "steps": ["Leave the food cue and reduce one source of light, noise, or demand.", "Rest your eyes and use five slow exhalations.", "Do one minute of gentle movement or sit somewhere supportive.", "Re-rate the urge. If broad physical hunger is clear, choose an adequate meal or balanced snack instead of automatically choosing the craved item."],
+      "swaps": ["A quiet room", "A brief lie-down", "A short walk", "A balanced meal if genuine hunger is present"],
+      "tags": ["rest", "low-energy", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "hydrate-and-check", "title": "Clear the thirst signal first", "minutes": 5,
+      "whyLine": "Addressing dry mouth or thirst can make the remaining food-specific urge easier to read.",
+      "steps": ["Move away from the food cue.", "Take a few comfortable sips of a suitable drink.", "Wait five minutes while doing a neutral activity away from food.", "Re-rate the urge and check for broad hunger. Water is not a substitute for a meal; eat an adequate meal or snack if hunger is present."],
+      "swaps": ["Cold water", "Flavored water", "Tea", "A non-food activity in another room"],
+      "tags": ["hydration", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "cycle-support", "title": "Separate appetite shift from impulse", "minutes": 7,
+      "whyLine": "A possible appetite shift deserves attention, but it does not prove that this specific craving must be followed.",
+      "steps": ["Move away from the specific food cue for seven minutes.", "Check whether several meals or snacks sound appealing, which is more consistent with broad hunger.", "Lower one demand and use a short comforting activity that is not food-based.", "Re-rate the urge. If genuine hunger is present, choose an adequate balanced meal or snack. Seek clinical support for severe or disruptive symptoms."],
+      "swaps": ["A warm shower", "A heating pad if normally safe for you", "Quiet rest", "A balanced meal if genuine hunger is present"],
+      "tags": ["cycle-context", "delay", "resist"], "nonLearnable": true, "timerAllowed": true
+    },
+    {
+      "id": "two-minute-downshift", "title": "Break the pressure loop", "minutes": 7,
+      "whyLine": "A brief nervous-system downshift can create room to choose without requiring the feeling to disappear.",
+      "steps": ["Leave the food, kitchen, or ordering screen for seven minutes.", "Put both feet or your back against a supported surface and exhale slowly five times.", "Name the single pressure that feels loudest and shrink it to one next action.", "Complete that action, then re-rate the craving before making any food decision."],
+      "swaps": ["Step outside", "Dim the room", "Hold something warm", "Listen to one familiar song"],
+      "tags": ["grounding", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "comfort-plus-choice", "title": "Meet the emotion without feeding the loop", "minutes": 10,
+      "whyLine": "Direct comfort can address the emotion without teaching the brain that every difficult feeling ends in the craved food.",
+      "steps": ["Move out of reach or sight of the food and name the feeling in one or two words.", "Choose one physical comfort: warmth, softness, pressure, quiet, or movement.", "Stay with that comfort for ten minutes while keeping food apps and cues closed.", "Re-rate the urge and name one action that would help the emotion itself."],
+      "swaps": ["Blanket or warm shower", "A short voice note", "A familiar non-food activity", "A quiet walk"],
+      "tags": ["comfort", "emotion", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "grounding-five-senses", "title": "Anchor, then outlast the urge", "minutes": 5,
+      "whyLine": "Concrete sensory cues can help an activated attention system orient to the present.",
+      "steps": ["Step away from the food cue and find three things you can see.", "Notice two points of contact on your body.", "Identify one sound nearby and one farther away.", "Continue for five minutes, then re-rate the urge without returning to the food first."],
+      "swaps": ["Hold a cool object", "Use a weighted blanket", "Walk slowly across the room", "Play a steady rhythm"],
+      "tags": ["grounding", "anxiety", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "tiny-activation", "title": "Create a different reward signal", "minutes": 7,
+      "whyLine": "When mood or stimulation is low, a tiny concrete action can add another source of reward.",
+      "steps": ["Leave the food cue and choose one action that starts in under a minute.", "Make it noticeable: brighter light, one energetic song, water on your face, or brisk movement.", "Continue the activity for seven minutes without opening food apps or returning to the food.", "Re-rate the urge and choose one more non-food action if it remains loud."],
+      "swaps": ["Open a window", "Play one energizing song", "Wash your face", "Message one person", "Take a brisk walk"],
+      "tags": ["activation", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "connection-step", "title": "Connect instead of feeding the feeling", "minutes": 10,
+      "whyLine": "A small signal of connection can address part of what food is being asked to carry.",
+      "steps": ["Move away from the food cue and pick the safest, lowest-effort person or space.", "Send a simple message, photo, or emoji; it does not need to become a long conversation.", "If no one is available, move to a shared space or play a familiar human voice.", "Stay connected for ten minutes, then re-rate the urge before returning to the original setting."],
+      "swaps": ["Text someone", "Sit near other people", "Play a favorite podcast", "Visit a shared space"],
+      "tags": ["connection", "emotion", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "reduce-one-demand", "title": "Remove pressure, not resolve", "minutes": 7,
+      "whyLine": "Overwhelm often eases more from reducing load than from demanding more self-control.",
+      "steps": ["Leave the food cue and list the demands competing for attention.", "Delete, delegate, defer, or shrink exactly one demand.", "Work on the smallest visible next action for seven minutes.", "Re-rate the craving. If broad physical hunger appears, use the nourishment route instead of treating food as an escape."],
+      "swaps": ["Cancel a nonessential task", "Ask for help", "Set a boundary", "Do one two-minute task"],
+      "tags": ["executive-function", "overwhelm", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "intentional-enjoyment", "title": "Rare deliberate-choice review", "minutes": 0,
+      "whyLine": "This is a final conscious-choice pathway, never the automatic answer to an ordinary craving.",
+      "steps": ["Confirm that you completed both resistance plans and rechecked for genuine hunger or medical needs.", "State clearly why you are choosing the food and whether the decision still fits your goals.", "If the decision feels impulsive, return to environmental distance and support rather than proceeding.", "If you make a deliberate choice, record it without shame, compensation, or abandoning the rest of the day."],
+      "swaps": ["Repeat the backup plan", "Ask another person for support", "Leave the cue until the urge falls", "Make a deliberate decision only after the review"],
+      "tags": ["food", "permission"], "nonLearnable": true, "timerAllowed": false
+    },
+    {
+      "id": "reward-menu", "title": "Choose a reward that strengthens you", "minutes": 10,
+      "whyLine": "Making the reward explicit helps match the choice to what would genuinely feel rewarding.",
+      "steps": ["Leave the food cue and ask whether you want rest, fun, recognition, connection, or a transition marker.", "Choose one non-food reward that matches the actual need.", "Give that reward your full attention for ten minutes.", "Re-rate the craving and record whether the reward need changed."],
+      "swaps": ["Ten minutes of a game", "Music and a break", "Tell someone what you finished", "A planned activity", "Quiet time with no demands"],
+      "tags": ["reward", "choice", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "change-the-cue", "title": "Cut off the cue", "minutes": 10,
+      "whyLine": "Distance stops the environment from repeatedly refreshing the urge while it is strongest.",
+      "steps": ["Identify the cue: sight, route, smell, location, notification, or open package.", "Close, cover, put away, or physically leave that cue now.", "Spend ten minutes in a different location doing a hands-busy activity.", "Re-rate the craving before you return. Do not reopen the cue just to test yourself."],
+      "swaps": ["Close the delivery app", "Take a different route", "Move to another room", "Put the package out of sight", "Start a hands-busy task"],
+      "tags": ["environment", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "choice-reset", "title": "Reset before the cue becomes action", "minutes": 7,
+      "whyLine": "A deliberate interruption separates noticing the cue from automatically reinforcing it.",
+      "steps": ["Name the cue in one sentence and move away from it.", "Ask whether broad physical hunger is present or whether the interest is specific to this item.", "Choose a non-food action that occupies your hands or attention for seven minutes.", "Re-rate the urge and continue away from the cue if it is falling."],
+      "swaps": ["Return to what you were doing", "Start a short task", "Call or message someone", "Use a non-food sensory activity"],
+      "tags": ["choice", "environment", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "screen-pattern-break", "title": "Break the screen-food pairing", "minutes": 10,
+      "whyLine": "Changing the opening of a paired routine makes the link more visible and gives you a real choice.",
+      "steps": ["Pause the screen and move away from the food for one minute.", "Check whether broad physical hunger is present or the urge started with the screen.", "Restart the screen with a fidget, craft, note-taking, or another hands-busy activity.", "Continue for ten minutes, then re-rate the craving without opening food content."],
+      "swaps": ["A fidget or craft", "Stand for one scene", "Take notes", "Fold laundry", "Pause the screen completely"],
+      "tags": ["habit", "screen", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "make-support-easy", "title": "Make the non-craving option easier", "minutes": 7,
+      "whyLine": "Convenience is a real need, especially when attention or energy is limited.",
+      "steps": ["Close the food cue or ordering screen.", "Choose the easiest non-food action that changes your location, attention, or stimulation.", "Remove one setup step so that action can begin immediately.", "Continue for seven minutes, then re-rate. If genuine hunger appears, choose an adequate balanced meal rather than the impulsive cue."],
+      "swaps": ["Walk outside", "Start one song", "Take a shower", "Call someone", "Open a simple task"],
+      "tags": ["executive-function", "environment", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "habit-bridge", "title": "Replace the next link", "minutes": 10,
+      "whyLine": "Habits change more reliably when the cue still leads somewhere predictable.",
+      "steps": ["Name the cue and the reward you expect from the old routine.", "Keep the same transition but replace the food action with one concrete alternative.", "Repeat the new action for ten minutes without checking the food.", "Re-rate the urge and record whether the new link delivered any part of the expected reward."],
+      "swaps": ["Same break, different location", "Same show with a fidget", "Same time with a short walk", "Same route with one new stop"],
+      "tags": ["habit", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "transition-ritual", "title": "Build a stronger transition ritual", "minutes": 10,
+      "whyLine": "A clear transition ritual can provide the decompression your old sequence was supplying.",
+      "steps": ["Say what just ended and what comes next, then leave the food cue.", "Change one sensory cue: clothes, light, music, temperature, or location.", "Give yourself a ten-minute no-demand buffer that does not include food content.", "Re-rate the urge. If this transition also includes broad physical hunger, move to an adequate meal plan."],
+      "swaps": ["Change clothes", "Wash hands and face", "Play a transition song", "Sit outside", "Take a short walk"],
+      "tags": ["habit", "transition", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "three-minute-start", "title": "Start the task before escaping it", "minutes": 10,
+      "whyLine": "A concrete start reduces the uncertainty that can make an escape action feel urgent.",
+      "steps": ["Close the food cue and define the first visible task action.", "Start that action immediately, even if it is only opening the file or finding one item.", "Continue for ten minutes or until one small unit is complete.", "Re-rate the craving before taking a break; choose a non-food break if the urge remains cue-specific."],
+      "swaps": ["Open the document", "Write one sentence", "Put away three items", "Ask for clarification", "Set up tomorrow's first step"],
+      "tags": ["executive-function", "habit", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "sensory-match", "title": "Meet the sensation without the craved food", "minutes": 7,
+      "whyLine": "Identifying the exact sensory property makes it possible to test a different safe source of stimulation first.",
+      "steps": ["Move away from the craved food and name the key property: crunch, cold, warmth, creaminess, spice, chew, or strong flavor.", "Choose a safe non-food sensory input using touch, sound, temperature, movement, or scent.", "Use that input for seven minutes without checking the food.", "Re-rate the urge and reassess broad hunger separately."],
+      "swaps": ["Hold a cool object", "Use a textured fidget", "Play strong rhythmic music", "Take a warm shower", "Use gum only if it is safe for you"],
+      "tags": ["sensory", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "oral-sensory-menu", "title": "Redirect the oral-sensory urge", "minutes": 7,
+      "whyLine": "Chewing, sipping, temperature, and flavor can provide regulation or stimulation apart from hunger.",
+      "steps": ["Move away from the craved food and check whether several foods sound appealing; if so, use the genuine-hunger route.", "If the urge is mainly oral stimulation, choose a safe non-food mouth activity.", "Use it for seven minutes only if it fits your dental, swallowing, allergy, and sensory needs.", "Re-rate the specific craving and switch to a movement or touch strategy if it remains strong."],
+      "swaps": ["Gum if safe for you", "A suitable straw drink", "A strong mint if safe", "A breathing exercise", "A textured hand activity"],
+      "tags": ["sensory", "oral", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    },
+    {
+      "id": "stimulation-menu", "title": "Give your brain a stronger alternative", "minutes": 10,
+      "whyLine": "Novelty, movement, sound, and texture can give an understimulated attention system another option.",
+      "steps": ["Leave the food cue and choose one channel: movement, sound, touch, or visual novelty.", "Choose an option intense enough to hold attention but safe and easy to stop.", "Use it for ten minutes without checking the food or delivery screen.", "Re-rate the urge and try a different channel if the first one did not fit."],
+      "swaps": ["One energetic song", "A quick walk or stretch", "A textured fidget", "A puzzle or short game", "A change of lighting or location"],
+      "tags": ["sensory", "activation", "delay", "resist"], "nonLearnable": false, "timerAllowed": true
+    }
+  ]
+}

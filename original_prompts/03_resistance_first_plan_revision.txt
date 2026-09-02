@@ -1,0 +1,127 @@
+Use the existing HabitWise Flutter app as the foundation. Keep almost everything about the current product unchanged, including its visual identity, color system, navigation, onboarding, Home, History, Insights, Profile, animations, stored data, safety settings, and overall phone-first design.
+
+Do not redesign the entire app. Make focused improvements to the craving-plan logic and Plan page.
+
+PRIMARY OBJECTIVE
+
+HabitWise should act like a firm but supportive craving coach. Its default objective is to help users resist and overcome ordinary impulsive cravings through practical, realistic interventions. It should not casually suggest eating the craved food.
+
+Medical safety still overrides craving resistance. Genuine hunger, hypoglycemia symptoms, medication-related appetite return, eating-disorder safety settings, pregnancy, illness, and clinician instructions must never be ignored.
+
+EXPAND THE PLAN PAGE
+
+The Plan page may contain substantially more information than it currently does, provided it remains organized, readable, and easy to use on a phone.
+
+Structure each plan using the following sections:
+
+1. Most Likely Craving Driver
+   - Identify what is most likely producing or intensifying the craving.
+   - Possible drivers include physical hunger, medication wear-off, stress, boredom, emotional regulation, sensory stimulation, fatigue, insufficient sleep, habit conditioning, environmental cues, social influence, reward-seeking, or a combination of factors.
+   - Base this explanation only on the user’s answers, current context, time of day, health settings, and recorded history.
+   - Never present a hypothesis as a medical diagnosis or confirmed fact.
+   - Use wording such as “The most likely driver is…,” “This may be related to…,” or “Your answers suggest…”
+   - When evidence is limited, explicitly say so and present two or three reasonable possibilities.
+
+2. Why HabitWise Thinks This
+   - Show the specific signals used to reach the conclusion.
+   - Example:
+     “You reported low physical hunger, high stress, and being near a food you usually eat while working. That pattern is more consistent with a stress-and-habit craving than an immediate nutritional need.”
+   - Make the reasoning transparent instead of producing unexplained recommendations.
+
+3. What May Be Happening
+   - Give a concise, plain-language explanation of the relevant psychological or physical process.
+   - Explain concepts such as cue-triggered behavior, reward anticipation, emotional avoidance, fatigue-related loss of inhibition, appetite returning as ADHD medication wears off, or the difference between physical hunger and a specific-food craving.
+   - Keep explanations educational and useful without sounding clinical or overwhelming.
+   - Do not claim that medication is responsible unless the user has reported a consistent personal wear-off window.
+
+4. Your Immediate Plan
+   - Provide a clear sequence of realistic actions that can be started immediately.
+   - Include:
+     - One action that creates distance from the food or trigger.
+     - One short nervous-system or emotional-regulation technique.
+     - One replacement activity, drink, or appropriate alternative.
+     - A specific 5–15 minute commitment.
+     - A clear instruction to re-rate the craving afterward.
+   - Each step must be short, concrete, and easy to follow.
+
+5. Why These Steps Should Help
+   - Briefly explain the purpose of every action.
+   - Example:
+     “Leaving the kitchen interrupts the environmental cue.”
+     “The short walk provides stimulation without reinforcing the food habit.”
+     “Waiting ten minutes gives the initial reward signal time to decrease.”
+   - Explanations should strengthen motivation rather than merely add text.
+
+6. If the Craving Is Still Strong
+   - Provide a second intervention using a different strategy.
+   - Do not immediately suggest eating the craved food when the first intervention fails.
+   - Progress through another appropriate technique, environmental change, support option, or hunger reassessment.
+   - Include a clear safety exit if symptoms suggest a genuine physical or medical need.
+
+7. After the Plan
+   - Ask the user to record:
+     - Craving intensity before and after.
+     - Whether the plan was completed.
+     - Which action helped most.
+     - Whether the craving returned.
+     - What the user ultimately decided to do.
+   - Feed appropriate results into History and Insights so the app can identify patterns over time.
+   - Hard-coded medical and psychiatric safety rules must remain nonlearnable and cannot be weakened by personalization.
+
+CRAVING-RESISTANCE RULES
+
+- Do not recommend eating the craved food as the normal solution.
+- Do not use “just have a little” as the default fallback.
+- Encourage the user to believe that the craving can be experienced without being obeyed.
+- Use firm language such as:
+  “This urge is uncomfortable, but it does not control your next action.”
+  “You do not need to decide about the food right now. Complete this plan first.”
+- Keep plans achievable. Do not rely on extreme willpower, complicated routines, or unrealistic time commitments.
+- Never use shame, insults, fear, starvation, meal-skipping, purging, excessive exercise, or compensatory restriction.
+
+RARE INTENTIONAL-CONSUMPTION EXCEPTION
+
+Eating the craved food should appear only as an uncommon, deliberate final option after appropriate interventions and safety checks.
+
+Do not frame food as something the user has “earned” by behaving well. If intentional consumption is selected, frame it as a conscious decision rather than a reward, failure, binge, or excuse to abandon the rest of the day.
+
+This option must not appear when it conflicts with an eating-disorder safety plan, allergy, medical restriction, glucose-safety requirement, or clinician guidance.
+
+GENUINE HUNGER AND MEDICAL SAFETY
+
+If the user is genuinely hungry, recommend an adequate meal or satisfying snack. Do not encourage the user to suppress physical hunger simply to defeat a craving.
+
+The suggested food does not have to be the specific impulsive food. Help the user meet the physical need in a balanced way while separating genuine nourishment from cue-driven behavior.
+
+Possible hypoglycemia, diabetes-related symptoms, clinician instructions, and other urgent physical needs must override delay or resistance strategies.
+
+Eating-disorder safety mode must continue to remove restrictive, punitive, or risky interventions.
+
+DESIGN REQUIREMENTS
+
+Preserve the current HabitWise design language. The expanded Plan page should feel like a natural extension of the existing app—not a replacement design.
+
+Use:
+
+- Clear visual hierarchy.
+- Short paragraphs and readable cards.
+- A prominent “Start Plan” action.
+- Checkable steps and progress indicators.
+- Expandable sections for deeper explanations.
+- A visible craving re-rating control.
+- Safety information that is noticeable without dominating every plan.
+- Existing colors, typography, spacing, components, and navigation patterns.
+
+The most important actions should remain visible near the top. Longer educational explanations can use expandable sections so the page provides more depth without becoming overwhelming.
+
+FINAL EXPERIENCE
+
+The completed Plan page should answer five questions clearly:
+
+1. What is most likely causing this craving?
+2. What evidence supports that conclusion?
+3. What should I do right now?
+4. Why should these actions work?
+5. What should I do if the craving remains strong?
+
+The result should feel like a knowledgeable, firm, transparent coach that helps users understand their patterns and overcome ordinary cravings while still responding safely to genuine hunger and medical needs.

@@ -1,0 +1,8 @@
+.DS_Store
+.idea/
+*.iml
+release/
+*.apk
+*.aab
+*.zip
+node_modules/

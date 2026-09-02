@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "typePriors": {
+    "sweet": {"physiological": 0.30, "emotional": 0.28, "environmental": 0.12, "habitual": 0.20, "sensory": 0.10},
+    "salty": {"physiological": 0.30, "emotional": 0.16, "environmental": 0.14, "habitual": 0.22, "sensory": 0.18},
+    "crunchy": {"physiological": 0.16, "emotional": 0.20, "environmental": 0.16, "habitual": 0.20, "sensory": 0.28},
+    "creamy": {"physiological": 0.22, "emotional": 0.28, "environmental": 0.12, "habitual": 0.20, "sensory": 0.18},
+    "warm": {"physiological": 0.24, "emotional": 0.30, "environmental": 0.10, "habitual": 0.20, "sensory": 0.16},
+    "cold": {"physiological": 0.22, "emotional": 0.16, "environmental": 0.16, "habitual": 0.18, "sensory": 0.28},
+    "specific": {"physiological": 0.18, "emotional": 0.20, "environmental": 0.22, "habitual": 0.22, "sensory": 0.18},
+    "anything": {"physiological": 0.38, "emotional": 0.20, "environmental": 0.10, "habitual": 0.20, "sensory": 0.12}
+  },
+  "subtriggers": [
+    {"id": "under_fueled", "label": "Not enough food earlier", "category": "physiological", "description": "Meals or snacks may have been delayed, small, or easy to miss.", "interventionIds": ["body-signal-reset", "steady-snack"]},
+    {"id": "medication_rebound", "label": "Medication may be wearing off", "category": "physiological", "description": "You have noticed hunger or appetite returning around this medication window.", "interventionIds": ["body-signal-reset", "wear-off-meal"]},
+    {"id": "long_gap", "label": "A long gap since eating", "category": "physiological", "description": "A long stretch without food can make an urge feel louder and more urgent.", "interventionIds": ["body-signal-reset", "steady-snack"]},
+    {"id": "sleep_debt", "label": "Short or disrupted sleep", "category": "physiological", "description": "Low sleep can leave the body seeking energy and comfort.", "interventionIds": ["rest-and-fuel", "body-signal-reset"]},
+    {"id": "thirst_dry_mouth", "label": "Thirst or dry mouth", "category": "physiological", "description": "Thirst, dry mouth, and hunger can overlap; both deserve a response.", "interventionIds": ["hydrate-and-check", "body-signal-reset"]},
+    {"id": "fatigue", "label": "Low energy", "category": "physiological", "description": "Your system may be asking for energy, rest, or both.", "interventionIds": ["rest-and-fuel", "body-signal-reset"]},
+    {"id": "cycle_shift", "label": "Cycle-related appetite shift", "category": "physiological", "description": "You may be in a time when appetite or food preferences naturally change.", "interventionIds": ["cycle-support", "body-signal-reset"]},
+
+    {"id": "stress_pressure", "label": "Stress or pressure", "category": "emotional", "description": "Food may feel like a fast route to relief in a loaded moment.", "interventionIds": ["two-minute-downshift", "comfort-plus-choice"]},
+    {"id": "anxiety_activation", "label": "Anxious or keyed up", "category": "emotional", "description": "Your nervous system may be seeking grounding and predictability.", "interventionIds": ["grounding-five-senses", "comfort-plus-choice"]},
+    {"id": "low_mood", "label": "Low, flat, or depleted", "category": "emotional", "description": "Pleasure and activation can feel harder to access when mood is low.", "interventionIds": ["tiny-activation", "comfort-plus-choice"]},
+    {"id": "lonely_disconnected", "label": "Lonely or disconnected", "category": "emotional", "description": "The urge may be carrying a wish for connection or comfort.", "interventionIds": ["connection-step", "comfort-plus-choice"]},
+    {"id": "overwhelmed", "label": "Overwhelmed", "category": "emotional", "description": "Too many demands can make a quick familiar action feel especially appealing.", "interventionIds": ["reduce-one-demand", "two-minute-downshift"]},
+    {"id": "celebration_reward", "label": "Celebration or reward", "category": "emotional", "description": "A completed task may be cueing a familiar food-reward routine.", "interventionIds": ["reward-menu", "transition-ritual"]},
+
+    {"id": "food_visible", "label": "Food is visible or nearby", "category": "environmental", "description": "A cue in your space can pull attention before a conscious decision forms.", "interventionIds": ["change-the-cue", "choice-reset"]},
+    {"id": "someone_eating", "label": "Someone else is eating", "category": "environmental", "description": "Social and visual cues can make an option feel immediately relevant.", "interventionIds": ["choice-reset", "change-the-cue"]},
+    {"id": "screen_content", "label": "Screen, ad, or food content", "category": "environmental", "description": "Images and routines around screens can prime a food thought.", "interventionIds": ["screen-pattern-break", "choice-reset"]},
+    {"id": "easy_access", "label": "It is the easiest available option", "category": "environmental", "description": "Access and convenience shape choices, especially when energy is low.", "interventionIds": ["make-support-easy", "choice-reset"]},
+
+    {"id": "time_of_day", "label": "A familiar time of day", "category": "habitual", "description": "Your brain may have learned to expect food at this moment.", "interventionIds": ["habit-bridge", "change-the-cue"]},
+    {"id": "after_task", "label": "After work, school, or a task", "category": "habitual", "description": "Transitions often carry a learned reward or decompression routine.", "interventionIds": ["transition-ritual", "reward-menu"]},
+    {"id": "screen_pairing", "label": "Paired with TV, gaming, or scrolling", "category": "habitual", "description": "Two activities can become linked through repetition.", "interventionIds": ["screen-pattern-break", "habit-bridge"]},
+    {"id": "procrastination", "label": "Avoiding or delaying a task", "category": "habitual", "description": "A food action can create a brief, concrete escape from an unclear task.", "interventionIds": ["three-minute-start", "choice-reset"]},
+    {"id": "automatic_route", "label": "An automatic route or location", "category": "habitual", "description": "A place or sequence may be doing much of the cueing.", "interventionIds": ["change-the-cue", "habit-bridge"]},
+
+    {"id": "sensory_specific", "label": "A very specific sensory need", "category": "sensory", "description": "The exact texture, flavor, or temperature may matter more than the food category.", "interventionIds": ["sensory-match", "stimulation-menu"]},
+    {"id": "oral_stimulation", "label": "Need to chew, sip, or keep the mouth busy", "category": "sensory", "description": "Your system may be seeking oral movement or steady stimulation.", "interventionIds": ["oral-sensory-menu", "sensory-match"]},
+    {"id": "temperature_texture", "label": "Temperature or texture comfort", "category": "sensory", "description": "Warmth, cold, crunch, softness, or creaminess may be regulating.", "interventionIds": ["sensory-match", "comfort-plus-choice"]},
+    {"id": "understimulated", "label": "Bored or understimulated", "category": "sensory", "description": "Your attention system may be looking for novelty, movement, or intensity.", "interventionIds": ["stimulation-menu", "tiny-activation"]}
+  ]
+}

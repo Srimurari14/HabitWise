@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "items": [
+    {"id":"base_plum","name":"Plum Glow","slot":"baseColor","rarity":"starter","price":0,"style":"plum","starter":true},
+    {"id":"base_coral","name":"Coral Glow","slot":"baseColor","rarity":"common","price":50,"style":"coral"},
+    {"id":"base_cyan","name":"Cyan Glow","slot":"baseColor","rarity":"bright","price":75,"style":"cyan"},
+    {"id":"eyes_kind","name":"Kind Eyes","slot":"eyes","rarity":"starter","price":0,"style":"kind","starter":true},
+    {"id":"eyes_star","name":"Star Eyes","slot":"eyes","rarity":"bright","price":75,"style":"star"},
+    {"id":"expression_ready","name":"Ready Smile","slot":"expression","rarity":"starter","price":0,"style":"smile","starter":true},
+    {"id":"expression_focus","name":"Focus Face","slot":"expression","rarity":"common","price":25,"style":"focus"},
+    {"id":"top_cream","name":"Cream Hoodie","slot":"top","rarity":"starter","price":0,"style":"cream","starter":true},
+    {"id":"top_coral","name":"Coral Flight Jacket","slot":"top","rarity":"bright","price":120,"style":"coral"},
+    {"id":"bottom_night","name":"Night Joggers","slot":"bottom","rarity":"common","price":50,"style":"night"},
+    {"id":"shoes_cloud","name":"Cloud Runners","slot":"shoes","rarity":"starter","price":0,"style":"cloud","starter":true},
+    {"id":"shoes_spark","name":"Spark Sneakers","slot":"shoes","rarity":"bright","price":75,"style":"spark"},
+    {"id":"scarf_lavender","name":"Lavender Scarf","slot":"scarf","rarity":"common","price":50,"style":"lavender"},
+    {"id":"glasses_round","name":"Orbit Glasses","slot":"glasses","rarity":"common","price":50,"style":"round"},
+    {"id":"hat_beanie","name":"Focus Beanie","slot":"hat","rarity":"bright","price":75,"style":"beanie"},
+    {"id":"back_wings","name":"Signal Wings","slot":"back","rarity":"milestone","price":0,"style":"wings","milestone":7},
+    {"id":"trail_comet","name":"Comet Trail","slot":"trail","rarity":"bright","price":120,"style":"comet"},
+    {"id":"celebration_confetti","name":"Gentle Confetti","slot":"celebration","rarity":"milestone","price":0,"style":"confetti","milestone":14},
+    {"id":"background_dawn","name":"Dawn Circuit","slot":"background","rarity":"common","price":75,"style":"dawn"}
+  ]
+}
