@@ -1,15 +1,11 @@
 # Instructions for AI coding assistants
 
-These instructions apply to the entire extracted handoff. The human owner's newest explicit request takes precedence, but do not silently weaken the safety invariants below.
+These instructions apply to the entire repository. The human owner's newest explicit request takes precedence, but do not silently weaken the safety invariants below.
 
 ## Source of truth
 
-- The active product is `flutter_app/`, currently HabitWise `1.2.0+3`.
-- `legacy_node_prototype/` is the earlier Electron/watch-scale experiment. It is useful for historical analytics and product reasoning, but it is not the current application.
-- `original_prompts/` records product intent and must not be mistaken for executable source.
-- `release/` contains generated distribution artifacts. Change source first, verify it, then rebuild release files.
-
-There was no usable Git history in the original workspace: its `.git` directory was empty. Before significant work, initialize a new Git repository and commit this handoff as a baseline.
+- This repository root is the Flutter app, currently HabitWise `1.2.0+3`.
+- Historical material (original prompts, project memory notes, screenshots, the legacy Node prototype) is kept outside this repository. It records past intent and must not be mistaken for executable source or current requirements.
 
 ## Product intent
 
@@ -30,7 +26,7 @@ That firmness must never override genuine hunger or health safety. Physical hung
 - Never add calorie goals, weight-loss scores, compensatory exercise, food morality, or body-transformation rewards.
 - The game must never replace eating, sleep, emergency action, or clinician-directed care.
 
-Protected plan IDs are enforced in `flutter_app/lib/data/repositories/habit_repository.dart` and documented in `flutter_app/docs/medical_safety_design.md`.
+Protected plan IDs are enforced in `lib/data/repositories/habit_repository.dart` and documented in `docs/medical_safety_design.md`.
 
 ## Gamification invariants
 
@@ -57,7 +53,7 @@ Protected plan IDs are enforced in `flutter_app/lib/data/repositories/habit_repo
 - Riverpod owns state and repositories.
 - `go_router` owns navigation.
 - Drift owns persistence; `app_database.g.dart` is generated and included.
-- Versioned behavioral and cosmetic configuration lives under `flutter_app/assets/config/`.
+- Versioned behavioral and cosmetic configuration lives under `assets/config/`.
 - The layered avatar is drawn with Flutter `CustomPainter`; the Signal Shift hero raster is an original generated asset under `assets/images/`.
 - Keep the craving flow answerable with short taps and avoid typing during acute craving steps.
 - Preserve source-tagged, hedged explanations such as “working hypothesis,” “may,” and “in your entries.”
@@ -66,15 +62,15 @@ Protected plan IDs are enforced in `flutter_app/lib/data/repositories/habit_repo
 
 ## Required verification for meaningful changes
 
-From `flutter_app/`:
+From the repository root:
 
-```powershell
+```sh
 dart format --output=none --set-exit-if-changed lib test
 flutter analyze
 flutter test
 ```
 
-For database changes, test upgrades from schema version 2 and 3. For UI/game changes, install the exact built APK on an Android emulator and inspect Home, Avatar, Signal Shift intro, live gameplay, Plan integration, History, and Insights. For store release, follow `flutter_app/docs/release_checklist.md`.
+For database changes, test upgrades from schema version 2 and 3. For UI/game changes, install the exact built APK on an Android emulator and inspect Home, Avatar, Signal Shift intro, live gameplay, Plan integration, History, and Insights. For store release, follow `docs/release_checklist.md`.
 
 ## Do not assume
 
@@ -83,5 +79,3 @@ For database changes, test upgrades from schema version 2 and 3. For UI/game cha
 - Do not assume iOS has been built; only scaffolding is present.
 - Do not assume the generated game artwork is a final brand identity.
 - Do not assume the owner wants the legacy Node app changed when asking about HabitWise.
-
-Read `project_memory/PROJECT_MEMORY.md` for the full context and `project_memory/AI_CONTINUATION_PROMPT.md` for a compact session bootstrap.
