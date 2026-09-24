@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habitwise/features/craving_flow/domain/config_loader.dart';
+import 'package:habitwise/features/craving_flow/domain/craving_models.dart';
 import 'package:habitwise/features/craving_flow/domain/medical_rules.dart';
 import 'package:habitwise/features/profile/domain/health_profile.dart';
 
@@ -22,8 +23,11 @@ void main() {
         config: config,
         profile: profile,
       );
-      for (final plan in <dynamic>[chosen.primary, chosen.backup]) {
-        if (plan == null) continue;
+      final shown = <InterventionDefinition>[
+        chosen.primary,
+        if (chosen.backup != null) chosen.backup!,
+      ];
+      for (final plan in shown) {
         expect(
           plan.tags.intersection(banned),
           isEmpty,
