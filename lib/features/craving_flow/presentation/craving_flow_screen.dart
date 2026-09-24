@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -134,13 +135,23 @@ class _SafetyStepState extends State<_SafetyStep> {
   bool? _restriction;
   bool _submitting = false;
 
+  bool get _singleQuestion =>
+      !widget.profile.glucoseSafetyEnabled && !widget.profile.edSafetyMode;
+
   bool get _complete =>
       _hungry != null &&
       (!widget.profile.glucoseSafetyEnabled || _glucoseWarning != null) &&
       (!widget.profile.edSafetyMode || _restriction != null) &&
       (_glucoseWarning != true || _personalPlan != null);
 
+  void _answerHunger(bool value) {
+    if (_submitting) return;
+    setState(() => _hungry = value);
+    if (_singleQuestion) unawaited(_submit());
+  }
+
   Future<void> _submit() async {
+    if (_submitting || !_complete) return;
     setState(() => _submitting = true);
     await widget.onContinue(
       SafetyAnswers(
@@ -161,19 +172,17 @@ class _SafetyStepState extends State<_SafetyStep> {
         children: <Widget>[
           Text('Body first', style: Theme.of(context).textTheme.headlineLarge),
           const SizedBox(height: 8),
-          const Text(
-            'Before looking for a trigger, let’s check whether your body needs direct care.',
-          ),
+          const Text('First, let’s check what your body needs.'),
           const SizedBox(height: 24),
           _YesNoQuestion(
             title:
-                'Are you physically hungry—or unsure enough that food sounds helpful?',
+                'Are you hungry, or unsure enough that food sounds good right now?',
             supportingText:
-                'Hunger can feel like emptiness, low energy, irritability, shakiness, a broad interest in food, or simply knowing it has been a while.',
+                'Hunger can feel like emptiness, low energy, being irritable or shaky, wanting food in general, or just knowing it has been a while.',
             value: _hungry,
             yesLabel: 'Yes / not sure',
             noLabel: 'No',
-            onChanged: (value) => setState(() => _hungry = value),
+            onChanged: _answerHunger,
           ),
           if (widget.profile.glucoseSafetyEnabled) ...<Widget>[
             const SizedBox(height: 16),
@@ -215,12 +224,15 @@ class _SafetyStepState extends State<_SafetyStep> {
             ),
           ],
           const SizedBox(height: 24),
-          FilledButton(
-            onPressed: !_complete || _submitting ? null : _submit,
-            child: _submitting
-                ? const CircularProgressIndicator(strokeWidth: 2)
-                : const Text('Continue'),
-          ),
+          if (!_singleQuestion)
+            FilledButton(
+              onPressed: !_complete || _submitting ? null : _submit,
+              child: _submitting
+                  ? const CircularProgressIndicator(strokeWidth: 2)
+                  : const Text('Continue'),
+            )
+          else if (_submitting)
+            const Center(child: CircularProgressIndicator(strokeWidth: 2)),
         ],
       ),
     );
@@ -297,14 +309,13 @@ class _TypeStep extends StatelessWidget {
             style: Theme.of(context).textTheme.headlineLarge,
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Pick the closest match. This helps organize the next question; it does not label the craving.',
-          ),
+          const Text('Pick the closest one.'),
           const SizedBox(height: 20),
           for (final type in CravingType.values) ...<Widget>[
             ChoiceTile(
               title: type.label,
               icon: icons[type],
+              trailing: const SizedBox.shrink(),
               onTap: () => onSelected(type),
             ),
             const SizedBox(height: 10),
@@ -332,24 +343,17 @@ class _CategoryStep extends StatelessWidget {
             style: Theme.of(context).textTheme.headlineLarge,
           ),
           const SizedBox(height: 8),
-          const Text(
-            'The first option is a gentle suggestion. Your selection always overrides it.',
-          ),
+          const Text('The first one is a guess. Pick whatever fits.'),
           const SizedBox(height: 20),
           for (var index = 0; index < ranked.length; index++) ...<Widget>[
             ChoiceTile(
               title: ranked[index].category.label,
-              subtitle: index == 0
-                  ? '${ranked[index].category.description}\nSuggested from ${ranked[index].reason}.'
-                  : ranked[index].category.description,
-              icon: _categoryIcon(ranked[index].category),
-              trailing: index == 0
-                  ? Chip(
-                      label: const Text('Suggested'),
-                      visualDensity: VisualDensity.compact,
-                      side: BorderSide.none,
-                    )
+              subtitle: ranked[index].category.description,
+              badge: index == 0
+                  ? 'Suggested from ${ranked[index].reason}'
                   : null,
+              icon: _categoryIcon(ranked[index].category),
+              trailing: const SizedBox.shrink(),
               onTap: () => onSelected(ranked[index].category),
             ),
             const SizedBox(height: 10),
@@ -404,20 +408,15 @@ class _SubtriggerStep extends StatelessWidget {
             ChoiceTile(
               title: items[index].label,
               subtitle: items[index].description,
-              trailing:
-                  index == 0 &&
-                      ((items[index].id == 'medication_rebound' &&
-                              profile.hasWearOffHunger) ||
-                          (items[index].id == 'sensory_specific' &&
-                              profile.contexts.contains(
-                                HealthContext.sensoryNeeds,
-                              )))
-                  ? const Chip(
-                      label: Text('From your profile'),
-                      visualDensity: VisualDensity.compact,
-                      side: BorderSide.none,
-                    )
+              badge:
+                  const MedicalRulesEngine().subtriggerPriority(
+                        item: items[index],
+                        profile: profile,
+                      ) >
+                      0
+                  ? 'From your profile'
                   : null,
+              trailing: const SizedBox.shrink(),
               onTap: () => onSelected(items[index].id),
             ),
             const SizedBox(height: 10),
@@ -520,6 +519,7 @@ class _PlanStepState extends State<_PlanStep> {
   late var _remaining = Duration(minutes: widget.plan.minutes);
   var _running = false;
   var _started = false;
+  var _timeUp = false;
   final _completedSteps = <int>{};
   SignalShiftResult? _gameResult;
 
@@ -535,14 +535,23 @@ class _PlanStepState extends State<_PlanStep> {
       setState(() => _running = false);
       return;
     }
-    setState(() => _running = true);
+    setState(() {
+      // Starting again after the countdown finished begins a fresh run.
+      if (_remaining == Duration.zero) {
+        _remaining = Duration(minutes: widget.plan.minutes);
+        _timeUp = false;
+      }
+      _running = true;
+    });
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_remaining.inSeconds <= 1) {
         timer.cancel();
         setState(() {
           _remaining = Duration.zero;
           _running = false;
+          _timeUp = true;
         });
+        unawaited(HapticFeedback.vibrate());
         return;
       }
       setState(() => _remaining -= const Duration(seconds: 1));
@@ -556,11 +565,15 @@ class _PlanStepState extends State<_PlanStep> {
   }
 
   void _toggleStep(int index, bool? complete) {
+    // The steps are in order, so ticking one marks everything before it, and
+    // unticking one clears everything after it.
     setState(() {
       if (complete ?? false) {
-        _completedSteps.add(index);
+        for (var step = 0; step <= index; step++) {
+          _completedSteps.add(step);
+        }
       } else {
-        _completedSteps.remove(index);
+        _completedSteps.removeWhere((step) => step >= index);
       }
     });
   }
@@ -609,7 +622,11 @@ class _PlanStepState extends State<_PlanStep> {
             ),
             const SizedBox(height: 10),
             HabitCard(
-              color: Theme.of(context).colorScheme.errorContainer,
+              // Only a possible medical emergency uses the alarm colour. A
+              // hunger or eating-concern exit is permission, not a warning.
+              color: widget.safetyDecision.exit == SafetyExit.urgentGlucose
+                  ? Theme.of(context).colorScheme.errorContainer
+                  : Theme.of(context).colorScheme.secondaryContainer,
               child: Text(widget.safetyDecision.message),
             ),
             const SizedBox(height: 20),
@@ -643,10 +660,11 @@ class _PlanStepState extends State<_PlanStep> {
                         'This is the best working explanation from your answers, not a confirmed cause.',
                   ),
                   const SizedBox(height: 12),
-                  const Chip(
-                    avatar: Icon(Icons.search_rounded, size: 18),
-                    label: Text('Working hypothesis'),
-                    side: BorderSide.none,
+                  Text(
+                    'A working guess, not a diagnosis.',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.onSecondaryContainer,
+                    ),
                   ),
                 ],
               ),
@@ -721,8 +739,12 @@ class _PlanStepState extends State<_PlanStep> {
             FilledButton.icon(
               onPressed: () => _startPlan(canTime),
               icon: const Icon(Icons.play_arrow_rounded),
-              label: Text('Start ${plan.minutes}-minute plan'),
+              label: const Text('Start the plan'),
             ),
+            if (plan.minutes > 0) ...<Widget>[
+              const SizedBox(height: 8),
+              Text('Usually about ${plan.minutes} minutes.'),
+            ],
             const SizedBox(height: 18),
           ],
           if (ordinaryPlan && _started) ...<Widget>[
@@ -809,23 +831,27 @@ class _PlanStepState extends State<_PlanStep> {
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.tonalIcon(
-                      onPressed: _playGame,
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: const Text('Play the recommended shift'),
-                    ),
-                  ),
-                  if (_gameResult != null) ...<Widget>[
-                    const SizedBox(height: 10),
+                  if (_gameResult == null)
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.tonalIcon(
+                        onPressed: _playGame,
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        label: const Text('Play the recommended shift'),
+                      ),
+                    )
+                  else ...<Widget>[
+                    const SizedBox(height: 4),
                     Text(
-                      'Game check-in saved: score ${_gameResult!.score}, +${_gameResult!.coinsEarned} coins. Continue with the rest of your plan.',
+                      'Saved: score ${_gameResult!.score}, ${_gameResult!.coinsEarned} coins. '
+                      'Coins are capped at 30 a day.',
                     ),
                   ],
                   const SizedBox(height: 6),
-                  const Text(
-                    'Prefer not to play? Skip it and continue the plan below.',
+                  Text(
+                    _gameResult == null
+                        ? 'Prefer not to play? Skip it and continue the plan below.'
+                        : 'Continue with the rest of your plan below.',
                   ),
                 ],
               ),
@@ -859,8 +885,11 @@ class _PlanStepState extends State<_PlanStep> {
             const SizedBox(height: 8),
             ExpansionTile(
               tilePadding: EdgeInsets.zero,
+              // On a safety exit the concrete list is the useful part, so it
+              // opens by default instead of hiding behind a tap.
+              initiallyExpanded: widget.safetyDecision.shouldExit,
               title: const Text('Easy ways to carry out the plan'),
-              subtitle: const Text('Choose the lowest-friction option'),
+              subtitle: const Text('Pick whichever is easiest'),
               children: plan.swaps
                   .map(
                     (item) => ListTile(
@@ -898,9 +927,7 @@ class _PlanStepState extends State<_PlanStep> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text(
-                          _started ? 'Plan timer' : 'Timer starts with plan',
-                        ),
+                        Text(_started ? 'Plan timer' : 'Timer ready'),
                         Text(
                           '${_remaining.inMinutes.toString().padLeft(2, '0')}:${(_remaining.inSeconds % 60).toString().padLeft(2, '0')}',
                           style: Theme.of(context).textTheme.headlineMedium,
@@ -909,15 +936,27 @@ class _PlanStepState extends State<_PlanStep> {
                     ),
                   ),
                   IconButton.filledTonal(
-                    tooltip: _running ? 'Pause timer' : 'Start timer',
+                    tooltip: _running
+                        ? 'Pause timer'
+                        : _timeUp
+                        ? 'Start again'
+                        : 'Start timer',
                     onPressed: _started ? _toggleTimer : null,
                     icon: Icon(
-                      _running ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      _running
+                          ? Icons.pause_rounded
+                          : _timeUp
+                          ? Icons.replay_rounded
+                          : Icons.play_arrow_rounded,
                     ),
                   ),
                 ],
               ),
             ),
+            if (_timeUp) ...<Widget>[
+              const SizedBox(height: 8),
+              const Text('Time is up. Re-rate the urge when you are ready.'),
+            ],
           ],
           if (ordinaryPlan && widget.backupPlan != null) ...<Widget>[
             const SizedBox(height: 26),
@@ -978,13 +1017,22 @@ class _PlanStepState extends State<_PlanStep> {
           ],
           const SizedBox(height: 24),
           FilledButton(
-            onPressed: ordinaryPlan && !_started ? null : widget.onContinue,
+            onPressed: widget.onContinue,
             child: Text(
               widget.safetyDecision.shouldExit
-                  ? 'Continue safely'
+                  ? 'Save check-in'
                   : 'Re-rate my craving',
             ),
           ),
+          if (widget.safetyDecision.shouldExit) ...<Widget>[
+            const SizedBox(height: 10),
+            const Center(
+              child: Text(
+                'Saved as a note. It never changes what the app suggests to you.',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
           if (ordinaryPlan) ...<Widget>[
             const SizedBox(height: 10),
             const Center(
@@ -1299,7 +1347,7 @@ class _CompleteStep extends StatelessWidget {
                 ? 'You responded to hunger with permission and care.'
                 : session.safetyExit != SafetyExit.none
                 ? 'The safety route took priority, as it should.'
-                : 'You gathered information—not a grade. That is what helps patterns become clearer.',
+                : 'You gathered information, not a grade. That is what makes patterns clearer.',
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 26),

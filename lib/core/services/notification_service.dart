@@ -70,7 +70,7 @@ class NotificationService {
       hour: 20,
       minute: 0,
       title: 'A private moment for you',
-      body: 'Notice what helped today—no score and no streak to protect.',
+      body: 'Notice what helped today. No score, no streak to protect.',
     );
   }
 

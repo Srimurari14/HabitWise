@@ -196,29 +196,102 @@ class MedicalRulesEngine {
     return unique.values.toList();
   }
 
+  /// How strongly the profile promotes this option. 0 means the profile says
+  /// nothing about it.
+  int subtriggerPriority({
+    required SubtriggerDefinition item,
+    required HealthProfile profile,
+    DateTime? now,
+  }) {
+    final instant = now ?? DateTime.now();
+    if (item.id == 'medication_rebound' && profile.wearOffMatches(instant)) {
+      return 3;
+    }
+    if (item.id == 'sensory_specific' &&
+        profile.contexts.contains(HealthContext.sensoryNeeds)) {
+      return 2;
+    }
+    if (item.id == 'under_fueled' && profile.hasWearOffHunger) return 1;
+    return 0;
+  }
+
+  /// Picks the plan and the backup plan for a subtrigger.
+  ///
+  /// Both come from the filtered list, so a plan the profile filters out (for
+  /// example a delay or resistance plan in eating-concern mode) can never be
+  /// shown as the backup. The backup is null when nothing suitable remains.
+  ({InterventionDefinition primary, InterventionDefinition? backup})
+  choosePlans({
+    required SubtriggerDefinition subtrigger,
+    required CravingConfig config,
+    required HealthProfile profile,
+  }) {
+    List<InterventionDefinition> allowed(Iterable<String> ids) => filterPlans(
+      candidates: ids
+          .map((id) => config.interventions[id])
+          .whereType<InterventionDefinition>(),
+      profile: profile,
+    ).where((plan) => plan.id != 'intentional-enjoyment').toList();
+
+    final forSubtrigger = allowed(subtrigger.interventionIds);
+    final fallbacks = allowed(
+      profile.edSafetyMode
+          ? const <String>[
+              'permission-and-support',
+              'steady-snack',
+              'permission-to-eat',
+            ]
+          : const <String>['change-the-cue', 'choice-reset'],
+    );
+
+    final primary = forSubtrigger.isNotEmpty
+        ? forSubtrigger.first
+        : (fallbacks.isNotEmpty
+              ? fallbacks.first
+              : config.interventions['permission-and-support']!);
+
+    InterventionDefinition? backup;
+    if (forSubtrigger.length > 1) {
+      backup = forSubtrigger[1];
+    } else {
+      for (final plan in fallbacks) {
+        if (plan.id != primary.id) {
+          backup = plan;
+          break;
+        }
+      }
+    }
+    return (primary: primary, backup: backup);
+  }
+
   List<SubtriggerDefinition> reorderSubtriggers({
     required Iterable<SubtriggerDefinition> candidates,
     required HealthProfile profile,
     DateTime? now,
   }) {
-    final ordered = candidates.toList();
     final instant = now ?? DateTime.now();
-    ordered.sort((a, b) {
-      int priority(SubtriggerDefinition item) {
-        if (item.id == 'medication_rebound' &&
-            profile.wearOffMatches(instant)) {
-          return 3;
-        }
-        if (item.id == 'sensory_specific' &&
-            profile.contexts.contains(HealthContext.sensoryNeeds)) {
-          return 2;
-        }
-        if (item.id == 'under_fueled' && profile.hasWearOffHunger) return 1;
-        return 0;
-      }
-
-      return priority(b).compareTo(priority(a));
-    });
-    return ordered;
+    final ordered = candidates.toList();
+    // Sort on the original position as well, so options the profile says
+    // nothing about always keep the order they were written in.
+    final indexed =
+        <MapEntry<int, SubtriggerDefinition>>[
+          for (var index = 0; index < ordered.length; index++)
+            MapEntry(index, ordered[index]),
+        ]..sort((a, b) {
+          final byPriority =
+              subtriggerPriority(
+                item: b.value,
+                profile: profile,
+                now: instant,
+              ).compareTo(
+                subtriggerPriority(
+                  item: a.value,
+                  profile: profile,
+                  now: instant,
+                ),
+              );
+          return byPriority != 0 ? byPriority : a.key.compareTo(b.key);
+        });
+    return indexed.map((entry) => entry.value).toList();
   }
 }

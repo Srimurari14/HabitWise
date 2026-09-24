@@ -28,8 +28,8 @@ void main() {
         container.read(cravingFlowControllerProvider).session.plan?.id,
         'permission-to-eat',
       );
-      controller.beginFollowUp();
-      await controller.save();
+      // A safety plan saves itself; there is no follow-up screen to fill in.
+      await controller.beginFollowUp();
 
       final state = container.read(cravingFlowControllerProvider);
       expect(state.step, CravingFlowStep.complete);

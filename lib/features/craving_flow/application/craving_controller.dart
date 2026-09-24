@@ -143,22 +143,13 @@ class CravingFlowController extends Notifier<CravingFlowState> {
         ref.read(profileProvider).value ??
         await ref.read(repositoryProvider).getProfile();
     final subtrigger = config.subtriggers.firstWhere((item) => item.id == id);
-    final candidates = subtrigger.interventionIds
-        .map((planId) => config.interventions[planId])
-        .whereType<InterventionDefinition>();
-    final plans = _rules.filterPlans(candidates: candidates, profile: profile);
-    final resistancePlans = plans
-        .where((plan) => plan.id != 'intentional-enjoyment')
-        .toList();
-    final fallback = profile.edSafetyMode
-        ? config.interventions['permission-and-support']!
-        : config.interventions['change-the-cue']!;
-    final primary = resistancePlans.isEmpty ? fallback : resistancePlans.first;
-    final backup =
-        resistancePlans.skip(1).firstOrNull ??
-        (primary.id == 'change-the-cue'
-            ? config.interventions['choice-reset']!
-            : config.interventions['change-the-cue']!);
+    final chosen = _rules.choosePlans(
+      subtrigger: subtrigger,
+      config: config,
+      profile: profile,
+    );
+    final primary = chosen.primary;
+    final backup = chosen.backup;
     final category = state.session.category!;
     final explanation = PlanExplanationEngine.buildDriver(
       type: state.session.type!,
@@ -203,16 +194,18 @@ class CravingFlowController extends Notifier<CravingFlowState> {
     );
   }
 
-  void beginFollowUp() {
+  Future<void> beginFollowUp() async {
     if (state.session.safetyExit != SafetyExit.none) {
+      // Safety and nourishment plans collect no follow-up answers, so the
+      // check-in is saved straight away instead of showing an empty screen.
       state = state.copyWith(
-        step: CravingFlowStep.followUp,
         session: state.session.copyWith(
           intensityAfter: state.session.intensityBefore,
           outcome: CravingOutcome.followedSafetyPlan,
           planCompleted: true,
         ),
       );
+      await save();
       return;
     }
     state = state.copyWith(step: CravingFlowStep.followUp);

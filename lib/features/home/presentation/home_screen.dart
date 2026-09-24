@@ -68,7 +68,9 @@ class HomeScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: 4),
                           const Text(
-                            'You noted that hunger often rises around now. An easy meal or snack can be a planned support—not something to resist.',
+                            'You said hunger often rises around now. An easy meal '
+                            'or snack now is part of the plan, not something to '
+                            'resist.',
                           ),
                         ],
                       ),
@@ -83,7 +85,10 @@ class HomeScreen extends ConsumerWidget {
             HabitCard(
               child: Row(
                 children: <Widget>[
-                  _Metric(value: '$todayCount', label: 'check-ins'),
+                  _Metric(
+                    value: '$todayCount',
+                    label: todayCount == 1 ? 'check-in' : 'check-ins',
+                  ),
                   Container(
                     height: 52,
                     width: 1,
@@ -93,7 +98,7 @@ class HomeScreen extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       logs.isEmpty
-                          ? 'Your patterns will appear after a few private check-ins.'
+                          ? 'After 3 check-ins, the Insights tab starts showing patterns.'
                           : 'Last check-in ${_relative(logs.first.completedAt, now)}',
                     ),
                   ),
@@ -105,26 +110,11 @@ class HomeScreen extends ConsumerWidget {
               _ReflectionCard(onTap: () => _showReflection(context, ref)),
             ],
             const SizedBox(height: 16),
-            HabitCard(
-              child: Row(
-                children: <Widget>[
-                  Icon(
-                    Icons.lock_outline_rounded,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'Your check-ins stay on this device in an encrypted local database.',
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Privacy details',
-                    onPressed: () => context.push('/privacy'),
-                    icon: const Icon(Icons.chevron_right_rounded),
-                  ),
-                ],
-              ),
+            ChoiceTile(
+              title: 'Your check-ins stay on this phone',
+              subtitle: 'Stored privately. Nothing is sent anywhere.',
+              icon: Icons.lock_outline_rounded,
+              onTap: () => context.push('/privacy'),
             ),
             const SizedBox(height: 12),
             Center(
@@ -147,7 +137,10 @@ class HomeScreen extends ConsumerWidget {
 
   static String _relative(DateTime then, DateTime now) {
     final difference = now.difference(then);
+    if (difference.inMinutes < 1) return 'just now';
+    if (difference.inMinutes == 1) return '1 min ago';
     if (difference.inMinutes < 60) return '${difference.inMinutes} min ago';
+    if (difference.inHours == 1) return '1 hr ago';
     if (difference.inHours < 24) return '${difference.inHours} hr ago';
     return DateFormat.MMMd().format(then);
   }

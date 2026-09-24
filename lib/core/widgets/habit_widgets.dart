@@ -59,10 +59,15 @@ class ChoiceTile extends StatelessWidget {
     this.icon,
     this.selected = false,
     this.trailing,
+    this.badge,
   });
 
   final String title;
   final String? subtitle;
+
+  /// Optional short label shown as a pill under the text, for example to mark
+  /// the option the app suggests and why.
+  final String? badge;
   final IconData? icon;
   final VoidCallback onTap;
   final bool selected;
@@ -108,6 +113,24 @@ class ChoiceTile extends StatelessWidget {
                       if (subtitle != null) ...<Widget>[
                         const SizedBox(height: 4),
                         Text(subtitle!),
+                      ],
+                      if (badge != null) ...<Widget>[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: scheme.secondaryContainer,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            badge!,
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(color: scheme.onSecondaryContainer),
+                          ),
+                        ),
                       ],
                     ],
                   ),

@@ -202,7 +202,7 @@ class _WelcomePage extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Text(
-            'HabitWise is a private, judgment-free craving coach. It helps you notice hunger, emotion, habit, environment, and sensory needs—then offers a practical plan.',
+            'HabitWise is a private, judgment-free craving coach. It helps you notice hunger, emotion, habit, environment and sensory needs, then offers a practical plan.',
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: 28),
@@ -238,7 +238,7 @@ class _PrinciplesPage extends StatelessWidget {
       (
         Icons.restaurant_rounded,
         'Hunger comes first',
-        'If you are physically hungry, the plan is to eat—not to wait it out.',
+        'If you are hungry, the plan is to eat, not to wait it out.',
       ),
       (
         Icons.psychology_alt_outlined,
@@ -544,7 +544,7 @@ class _ReadyPage extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           const Text(
-            'A check-in usually takes about a minute. As your private history grows, HabitWise can surface patterns—but your answer in the moment always comes first.',
+            'A check-in usually takes about a minute. As your history grows, HabitWise can show patterns, but your answer in the moment always comes first.',
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
