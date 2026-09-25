@@ -24,7 +24,16 @@ class AvatarScreen extends ConsumerWidget {
     final balance = ref.watch(coinBalanceProvider);
     final activeDays = ref.watch(weeklyActivityProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Avatar')),
+      appBar: AppBar(
+        title: const Text('Avatar'),
+        actions: <Widget>[
+          IconButton(
+            tooltip: 'How coins are earned',
+            onPressed: () => _showCoinGuide(context),
+            icon: const Icon(Icons.help_outline_rounded),
+          ),
+        ],
+      ),
       body: ready.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stackTrace) =>
@@ -41,7 +50,7 @@ class AvatarScreen extends ConsumerWidget {
                     child: _StatusCard(
                       icon: Icons.brightness_5_rounded,
                       value: '$balance',
-                      label: 'earned coins',
+                      label: 'coins left',
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -276,6 +285,128 @@ class _StatusCard extends StatelessWidget {
   }
 }
 
+Future<void> _showCoinGuide(BuildContext context) {
+  const rows = <(String, String)>[
+    ('Finishing a check-in follow-up', '2 coins'),
+    ('Completing the plan you were given', '6 coins'),
+    ('Moving past or redirecting a craving', '8 coins'),
+    ('Reaching 3 or 7 momentum days', '15 coins'),
+    ('Reaching 14 or 30 momentum days', '30 coins'),
+    ('Signal Shift during a craving, if you finish it', '3 to 10 coins'),
+    ('Signal Shift practice, if you finish it', 'up to 3 coins'),
+  ];
+  return showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (context) => SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          4,
+          20,
+          24 + MediaQuery.paddingOf(context).bottom,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              'How coins are earned',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 14),
+            for (final row in rows) ...<Widget>[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(child: Text(row.$1)),
+                  const SizedBox(width: 12),
+                  Text(
+                    row.$2,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 18),
+            ],
+            const Text(
+              'Games can earn at most 30 coins a day. Practice pays less than a '
+              'recommended session, and a short run may earn nothing at all.',
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Hunger, glucose and eating-concern check-ins never earn coins. '
+              'Food is never something you have to earn.',
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _PreviewFigure extends StatelessWidget {
+  const _PreviewFigure({required this.label, required this.equipped});
+
+  final String label;
+  final Map<String, String> equipped;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 130,
+      child: Column(
+        children: <Widget>[
+          AvatarCharacter(equipped: equipped, size: 110),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelMedium,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CostRow extends StatelessWidget {
+  const _CostRow({
+    required this.label,
+    required this.value,
+    this.strong = false,
+  });
+
+  final String label;
+  final String value;
+  final bool strong;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodyLarge;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: <Widget>[
+          Text(label, style: style),
+          Text(
+            value,
+            style: strong
+                ? style?.copyWith(fontWeight: FontWeight.w700)
+                : style,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CosmeticGrid extends ConsumerWidget {
   const _CosmeticGrid({
     required this.items,
@@ -307,34 +438,185 @@ class _CosmeticGrid extends ConsumerWidget {
         final owned = ownedIds.contains(item.id);
         final equipped = avatar.equipped[item.slot.name] == item.id;
         final lockedByMilestone = item.milestone != null && !owned;
+        final affordable =
+            !owned && store && !lockedByMilestone && balance >= item.price;
+        final outOfReach = !owned && !affordable;
+        final scheme = Theme.of(context).colorScheme;
         return InkWell(
           borderRadius: BorderRadius.circular(18),
           onTap: () async {
             final repository = ref.read(gamificationRepositoryProvider);
+            final messenger = ScaffoldMessenger.of(context);
             if (owned) {
-              await repository.equip(item);
+              final action = await showModalBottomSheet<String>(
+                context: context,
+                showDragHandle: true,
+                isScrollControlled: true,
+                builder: (context) => SafeArea(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                      20,
+                      4,
+                      20,
+                      20 + MediaQuery.paddingOf(context).bottom,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          item.name,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          equipped
+                              ? 'You are wearing this ${item.slot.label.toLowerCase()}'
+                              : '${item.slot.label} you own',
+                        ),
+                        const SizedBox(height: 16),
+                        Center(
+                          child: _PreviewFigure(
+                            label: equipped ? 'Wearing now' : 'How it looks',
+                            equipped: <String, String>{
+                              ...avatar.equipped,
+                              item.slot.name: item.id,
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        if (!equipped)
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              onPressed: () => Navigator.pop(context, 'wear'),
+                              child: const Text('Wear this'),
+                            ),
+                          )
+                        else if (item.slot.canBeRemoved)
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              onPressed: () => Navigator.pop(context, 'remove'),
+                              child: const Text('Take it off'),
+                            ),
+                          )
+                        else
+                          Text(
+                            '${item.slot.label} cannot be left empty. Pick a different one to change it.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context, 'close'),
+                            child: const Text('Close'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+              if (action == 'wear') {
+                await repository.equip(item);
+              } else if (action == 'remove') {
+                await repository.unequip(item.slot);
+              }
               return;
             }
-            if (!store || lockedByMilestone) return;
-            final confirmed = await showDialog<bool>(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: Text('Unlock ${item.name}?'),
-                content: Text(
-                  '${item.price} earned coins will be used. Your current balance is $balance.',
+            if (lockedByMilestone) {
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Unlocks at ${item.milestone} momentum days. It cannot be bought with coins.',
+                  ),
                 ),
-                actions: <Widget>[
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Not now'),
+              );
+              return;
+            }
+            if (!store) return;
+            if (balance < item.price) {
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'You need ${item.price - balance} more coins for ${item.name}.',
                   ),
-                  FilledButton(
-                    onPressed: balance >= item.price
-                        ? () => Navigator.pop(context, true)
-                        : null,
-                    child: const Text('Unlock'),
+                ),
+              );
+              return;
+            }
+            final confirmed = await showModalBottomSheet<bool>(
+              context: context,
+              showDragHandle: true,
+              isScrollControlled: true,
+              builder: (context) => SafeArea(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(
+                    20,
+                    4,
+                    20,
+                    20 + MediaQuery.paddingOf(context).bottom,
                   ),
-                ],
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        item.name,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 4),
+                      Text('${item.slot.label} for your avatar'),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: <Widget>[
+                          _PreviewFigure(
+                            label: 'Now',
+                            equipped: avatar.equipped,
+                          ),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          _PreviewFigure(
+                            label: 'With ${item.name}',
+                            equipped: <String, String>{
+                              ...avatar.equipped,
+                              item.slot.name: item.id,
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      _CostRow(label: 'Cost', value: '${item.price} coins'),
+                      _CostRow(label: 'You have', value: '$balance coins'),
+                      _CostRow(
+                        label: 'Left afterwards',
+                        value: '${balance - item.price} coins',
+                        strong: true,
+                      ),
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Unlock'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Not now'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             );
             if (confirmed != true) return;
@@ -345,7 +627,7 @@ class _CosmeticGrid extends ConsumerWidget {
                 content: Text(
                   purchased
                       ? '${item.name} is now in your locker.'
-                      : 'You do not have enough earned coins yet.',
+                      : 'You do not have enough coins yet.',
                 ),
               ),
             );
@@ -353,40 +635,72 @@ class _CosmeticGrid extends ConsumerWidget {
           child: Ink(
             decoration: BoxDecoration(
               color: equipped
-                  ? Theme.of(context).colorScheme.primaryContainer
-                  : Theme.of(context).colorScheme.surfaceContainerLow,
+                  ? scheme.primaryContainer
+                  : affordable
+                  ? scheme.secondaryContainer
+                  : scheme.surfaceContainerLow,
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
                 color: equipped
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.outlineVariant,
+                    ? scheme.primary
+                    : affordable
+                    ? scheme.primary.withValues(alpha: 0.6)
+                    : scheme.outlineVariant,
               ),
             ),
             padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Icon(_icon(item.slot), size: 22),
-                const SizedBox(height: 5),
-                Text(
-                  item.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-                Text(
-                  equipped
-                      ? 'Wearing'
-                      : owned
-                      ? item.slot.label
-                      : lockedByMilestone
-                      ? '${item.milestone}-day milestone'
-                      : '${item.price} coins',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+            child: Opacity(
+              opacity: outOfReach ? 0.55 : 1,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Icon(_icon(item.slot), size: 22),
+                      const Spacer(),
+                      if (!owned)
+                        Icon(
+                          lockedByMilestone
+                              ? Icons.lock_clock_rounded
+                              : Icons.lock_outline_rounded,
+                          size: 18,
+                          color: affordable
+                              ? scheme.primary
+                              : scheme.onSurfaceVariant,
+                        ),
+                      if (equipped)
+                        Icon(
+                          Icons.check_circle_rounded,
+                          size: 18,
+                          color: scheme.primary,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    item.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  Text(
+                    equipped
+                        ? (item.slot.canBeRemoved
+                              ? 'Wearing. Tap to remove'
+                              : 'Wearing')
+                        : owned
+                        ? item.slot.label
+                        : lockedByMilestone
+                        ? '${item.milestone}-day milestone'
+                        : affordable
+                        ? '${item.price} coins'
+                        : '${item.price} coins, ${item.price - balance} to go',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ),
         );

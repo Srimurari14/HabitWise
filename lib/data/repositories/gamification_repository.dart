@@ -176,6 +176,17 @@ class GamificationRepository {
     return true;
   }
 
+  /// Takes an accessory off. Required slots such as tops and shoes always keep
+  /// an item, so those are refused.
+  Future<bool> unequip(CosmeticSlot slot) async {
+    if (!slot.canBeRemoved) return false;
+    final avatar = await getAvatar();
+    if (!avatar.equipped.containsKey(slot.name)) return false;
+    final equipped = Map<String, String>.of(avatar.equipped)..remove(slot.name);
+    await saveAvatar(avatar.copyWith(equipped: equipped));
+    return true;
+  }
+
   Future<void> saveOutfit(String name) async {
     final avatar = await getAvatar();
     await database
@@ -222,9 +233,11 @@ class GamificationRepository {
       final now = DateTime.now();
       var reward = 0;
       if (completed) {
+        // Finishing always pays something: a craving session is never a test
+        // a person can fail. Playing well widens the bonus on top.
         final requested = launch.source == GameSource.recommended
-            ? (3 + score ~/ 180).clamp(3, 10)
-            : (score ~/ 250).clamp(0, 3);
+            ? (3 + score ~/ 180).clamp(3, 12)
+            : (1 + score ~/ 250).clamp(1, 3);
         final startOfDay = DateTime(now.year, now.month, now.day);
         final tomorrow = startOfDay.add(const Duration(days: 1));
         final dailyRows =

@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/widgets/habit_widgets.dart';
 import '../../../providers.dart';
 import '../domain/avatar_models.dart';
 import 'avatar_character.dart';
@@ -36,6 +38,11 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
   bool _started = false;
   bool _paused = false;
   bool _jumping = false;
+  String? _flash;
+  Offset? _dragStart;
+  final _focusNode = FocusNode();
+  Timer? _flashTimer;
+  double _shake = 0;
   bool _saving = false;
   bool _finished = false;
   int _intensityAfter = 5;
@@ -45,7 +52,17 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _flashTimer?.cancel();
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  void _showFlash(String message) {
+    _flashTimer?.cancel();
+    setState(() => _flash = message);
+    _flashTimer = Timer(const Duration(milliseconds: 700), () {
+      if (mounted) setState(() => _flash = null);
+    });
   }
 
   void _start() {
@@ -89,17 +106,52 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
             if (object.spark) {
               _combo++;
               _bestCombo = math.max(_bestCombo, _combo);
-              _score += 10 + math.min(_combo, 10);
+              // Each spark in a row is worth 10 more, up to 50, and a block
+              // sends it back to the start.
+              final points = math.min(_combo * 10, 50);
+              _score += points;
+              object.collected = true;
+              _showFlash('+$points');
             } else if (!_jumping) {
               _combo = 0;
-              _score = math.max(0, _score - 5);
+              _score = math.max(0, _score - 10);
+              _shake = 1;
+              _showFlash('-10');
+              if (_mode != GameMode.calm && _mode != GameMode.reducedMotion) {
+                unawaited(HapticFeedback.mediumImpact());
+              }
+            } else {
+              _score += 5;
+              object.cleared = true;
+              _showFlash('+5');
             }
           }
         }
       }
-      _objects.removeWhere((object) => object.y > 1.08);
+      if (_shake > 0) {
+        _shake = math.max(0, _shake - 0.12);
+      }
+      // A collected spark disappears straight away; a cleared block fades on.
+      _objects.removeWhere((object) => object.y > 1.08 || object.collected);
     });
     if (_elapsed >= target) _complete(completed: true);
+  }
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    final start = _dragStart;
+    if (start == null) return;
+    final dx = details.localPosition.dx - start.dx;
+    final dy = details.localPosition.dy - start.dy;
+    const threshold = 32.0;
+    if (dy < -threshold && dy.abs() > dx.abs()) {
+      _dragStart = null;
+      _jump();
+      return;
+    }
+    if (dx.abs() > threshold) {
+      _dragStart = null;
+      _move(dx < 0 ? -1 : 1);
+    }
   }
 
   void _move(int direction) {
@@ -221,9 +273,69 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
             widget.launch.reason ??
                 'Move your character between three lanes, collect Focus Sparks, and jump over Signal Blocks. Missing an item never ends the game.',
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
+          HabitCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'How it works',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 12),
+                const _RuleRow(
+                  icon: Icons.auto_awesome_rounded,
+                  text: 'Collect a Focus Spark',
+                  value: '+10',
+                ),
+                const _RuleRow(
+                  icon: Icons.bolt_rounded,
+                  text: 'Each spark in a row is worth more',
+                  value: 'up to +50',
+                ),
+                const _RuleRow(
+                  icon: Icons.arrow_upward_rounded,
+                  text: 'Jump over a Signal Block',
+                  value: '+5',
+                ),
+                const _RuleRow(
+                  icon: Icons.close_rounded,
+                  text: 'Run into a Signal Block',
+                  value: '-10',
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'A run of sparks pays 10, then 20, 30, 40, 50. Running into '
+                  'a block sends it back to 10. Your score sets how many coins '
+                  'the session earns, and finishing always earns some.',
+                ),
+                const Divider(height: 26),
+                Text(
+                  'Controls',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 10),
+                const _RuleRow(
+                  icon: Icons.swipe_rounded,
+                  text: 'Swipe left or right, or tap that side',
+                  value: 'Move',
+                ),
+                const _RuleRow(
+                  icon: Icons.swipe_up_rounded,
+                  text: 'Swipe up, or tap the middle',
+                  value: 'Jump',
+                ),
+                const _RuleRow(
+                  icon: Icons.keyboard_rounded,
+                  text: 'Arrow keys also work',
+                  value: 'Move and jump',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
           const Text(
-            'Swipe left or right to change lanes. Swipe up or tap Jump to clear a block. This is a short coping option, not treatment and not a measure of self-control.',
+            'Missing something never ends the session. This is a short coping option, not treatment and not a measure of self-control.',
           ),
           if (widget.launch.source == GameSource.practice) ...<Widget>[
             const SizedBox(height: 22),
@@ -297,94 +409,152 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
           ),
         ),
         Expanded(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onHorizontalDragEnd: (details) => _move(
-              details.primaryVelocity != null && details.primaryVelocity! < 0
-                  ? 1
-                  : -1,
-            ),
-            onVerticalDragEnd: (details) {
-              if ((details.primaryVelocity ?? 0) < 0) _jump();
+          child: KeyboardListener(
+            focusNode: _focusNode,
+            autofocus: true,
+            onKeyEvent: (event) {
+              if (event is! KeyDownEvent) return;
+              final key = event.logicalKey;
+              if (key == LogicalKeyboardKey.arrowLeft ||
+                  key == LogicalKeyboardKey.keyA) {
+                _move(-1);
+              } else if (key == LogicalKeyboardKey.arrowRight ||
+                  key == LogicalKeyboardKey.keyD) {
+                _move(1);
+              } else if (key == LogicalKeyboardKey.arrowUp ||
+                  key == LogicalKeyboardKey.space ||
+                  key == LogicalKeyboardKey.keyW) {
+                _jump();
+              }
             },
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final laneWidth = constraints.maxWidth / 3;
-                final playerLeft = laneWidth * _lane + laneWidth / 2 - 42;
-                return Stack(
-                  children: <Widget>[
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: _TrackPainter(
-                          objects: _objects,
-                          calm: _mode == GameMode.calm,
-                          highContrast: avatar.preferences.highContrast,
-                        ),
-                      ),
-                    ),
-                    AnimatedPositioned(
-                      duration: _mode == GameMode.reducedMotion
-                          ? Duration.zero
-                          : const Duration(milliseconds: 140),
-                      curve: Curves.easeOut,
-                      left: playerLeft,
-                      bottom: _jumping ? 100 : 24,
-                      child: AvatarCharacter(
-                        equipped: avatar.equipped,
-                        size: 84,
-                        running: _mode != GameMode.reducedMotion,
-                        phase: (_tick % 20) / 20,
-                      ),
-                    ),
-                    if (_paused)
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              // Decided by how far the finger or pointer moved, not how fast, so
+              // a slow drag on a trackpad works as well as a flick on a phone.
+              onPanStart: (details) => _dragStart = details.localPosition,
+              onPanUpdate: _onDragUpdate,
+              onPanEnd: (_) => _dragStart = null,
+              onTapUp: (details) {
+                if (!_started || _paused || _finished) return;
+                final width = context.size?.width ?? 0;
+                if (width == 0) return;
+                final third = width / 3;
+                if (details.localPosition.dx < third) {
+                  _move(-1);
+                } else if (details.localPosition.dx > width - third) {
+                  _move(1);
+                } else {
+                  _jump();
+                }
+              },
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final laneWidth = constraints.maxWidth / 3;
+                  final playerLeft = laneWidth * _lane + laneWidth / 2 - 42;
+                  final shakeAllowed =
+                      _mode != GameMode.calm && _mode != GameMode.reducedMotion;
+                  return Stack(
+                    children: <Widget>[
                       Positioned.fill(
-                        child: ColoredBox(
-                          color: Colors.black54,
-                          child: Center(
-                            child: FilledButton.icon(
-                              onPressed: () => setState(() => _paused = false),
-                              icon: const Icon(Icons.play_arrow_rounded),
-                              label: const Text('Resume'),
+                        child: Transform.translate(
+                          offset: shakeAllowed
+                              ? Offset(math.sin(_tick * 1.7) * _shake * 9, 0)
+                              : Offset.zero,
+                          child: CustomPaint(
+                            painter: _TrackPainter(
+                              objects: _objects,
+                              calm: _mode == GameMode.calm,
+                              highContrast: avatar.preferences.highContrast,
                             ),
                           ),
                         ),
                       ),
-                  ],
-                );
-              },
+                      if (_flash != null)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 150,
+                          child: IgnorePointer(
+                            child: Center(
+                              child: Text(
+                                _flash!,
+                                style: Theme.of(context).textTheme.headlineSmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: _flash!.startsWith('-')
+                                          ? const Color(0xFFFF806D)
+                                          : const Color(0xFFFFD86B),
+                                    ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      AnimatedPositioned(
+                        duration: _mode == GameMode.reducedMotion
+                            ? Duration.zero
+                            : const Duration(milliseconds: 140),
+                        curve: Curves.easeOut,
+                        left: playerLeft,
+                        bottom: _jumping ? 100 : 24,
+                        child: AvatarCharacter(
+                          equipped: avatar.equipped,
+                          size: 84,
+                          running: _mode != GameMode.reducedMotion,
+                          phase: (_tick % 20) / 20,
+                        ),
+                      ),
+                      if (_paused)
+                        Positioned.fill(
+                          child: ColoredBox(
+                            color: Colors.black54,
+                            child: Center(
+                              child: FilledButton.icon(
+                                onPressed: () =>
+                                    setState(() => _paused = false),
+                                icon: const Icon(Icons.play_arrow_rounded),
+                                label: const Text('Resume'),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 14),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: FilledButton.tonalIcon(
-                  onPressed: () => _move(-1),
-                  icon: const Icon(Icons.arrow_left_rounded),
-                  label: const Text('Left'),
+        if (avatar.preferences.oneHanded)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 14),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => _move(-1),
+                    icon: const Icon(Icons.arrow_left_rounded),
+                    label: const Text('Left'),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton.tonalIcon(
-                  onPressed: _jump,
-                  icon: const Icon(Icons.arrow_upward_rounded),
-                  label: const Text('Jump'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: _jump,
+                    icon: const Icon(Icons.arrow_upward_rounded),
+                    label: const Text('Jump'),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton.tonalIcon(
-                  onPressed: () => _move(1),
-                  icon: const Icon(Icons.arrow_right_rounded),
-                  label: const Text('Right'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => _move(1),
+                    icon: const Icon(Icons.arrow_right_rounded),
+                    label: const Text('Right'),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
       ],
     );
   }
@@ -472,7 +642,7 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
               const CircularProgressIndicator()
             else if ((_result?.coinsEarned ?? 0) > 0)
               Text(
-                '+${_result!.coinsEarned} earned coins',
+                '+${_result!.coinsEarned} coins',
                 style: Theme.of(context).textTheme.titleLarge,
               )
             else
@@ -504,13 +674,13 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
           'Stopping is always okay. An incomplete session will be recorded without a coin reward.',
         ),
         actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Keep playing'),
-          ),
-          FilledButton(
+          OutlinedButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('End session'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep playing'),
           ),
         ],
       ),
@@ -520,6 +690,36 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
 
   static String _clock(int seconds) =>
       '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+}
+
+class _RuleRow extends StatelessWidget {
+  const _RuleRow({required this.icon, required this.text, required this.value});
+
+  final IconData icon;
+  final String text;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: <Widget>[
+          Icon(icon, size: 20, color: scheme.primary),
+          const SizedBox(width: 12),
+          Expanded(child: Text(text)),
+          const SizedBox(width: 10),
+          Text(
+            value,
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _GameMetric extends StatelessWidget {
@@ -541,6 +741,8 @@ class _GameMetric extends StatelessWidget {
 class _TrackObject {
   _TrackObject({required this.lane, required this.y, required this.spark});
   final int lane;
+  bool collected = false;
+  bool cleared = false;
   double y;
   final bool spark;
   bool resolved = false;

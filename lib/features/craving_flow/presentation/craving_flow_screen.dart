@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/habit_widgets.dart';
+import '../../../data/local/app_database.dart';
 import '../../../providers.dart';
 import '../../gamification/domain/avatar_models.dart';
 import '../../profile/domain/health_profile.dart';
@@ -235,6 +236,72 @@ class _SafetyStepState extends State<_SafetyStep> {
             const Center(child: CircularProgressIndicator(strokeWidth: 2)),
         ],
       ),
+    );
+  }
+}
+
+class _CoinReward extends StatelessWidget {
+  const _CoinReward({
+    required this.earned,
+    required this.balance,
+    required this.reducedMotion,
+  });
+
+  final int earned;
+  final int balance;
+  final bool reducedMotion;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: scheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(Icons.hexagon_outlined, size: 20, color: scheme.primary),
+          const SizedBox(width: 10),
+          TweenAnimationBuilder<int>(
+            tween: IntTween(begin: reducedMotion ? earned : 0, end: earned),
+            duration: reducedMotion
+                ? Duration.zero
+                : const Duration(milliseconds: 900),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, child) => Text(
+              '+$value coins',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: scheme.onSecondaryContainer,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return Column(
+      children: <Widget>[
+        if (reducedMotion)
+          chip
+        else
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0.85, end: 1),
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeOutBack,
+            builder: (context, scale, child) =>
+                Transform.scale(scale: scale, child: child),
+            child: chip,
+          ),
+        const SizedBox(height: 8),
+        Text(
+          '$balance coins in total. Coins are earned, never bought.',
+          style: Theme.of(context).textTheme.bodySmall,
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 }
@@ -1315,14 +1382,26 @@ class _FollowUpStepState extends State<_FollowUpStep> {
   }
 }
 
-class _CompleteStep extends StatelessWidget {
+class _CompleteStep extends ConsumerWidget {
   const _CompleteStep({required this.session, required this.onDone});
 
   final CravingSession session;
   final VoidCallback onDone;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Safety and nourishment check-ins never earn coins, so they show nothing
+    // here rather than a zero.
+    final ledger = session.safetyExit == SafetyExit.none
+        ? (ref.watch(coinLedgerProvider).value ?? const <CoinLedgerData>[])
+        : const <CoinLedgerData>[];
+    final earned = ledger
+        .where((row) => row.relatedSessionId == session.id)
+        .fold<int>(0, (total, row) => total + row.amount);
+    final balance = ref.watch(coinBalanceProvider);
+    final reducedMotion =
+        MediaQuery.disableAnimationsOf(context) ||
+        (ref.watch(avatarProvider).value?.preferences.reducedMotion ?? false);
     return PageFrame(
       child: Column(
         children: <Widget>[
@@ -1350,6 +1429,14 @@ class _CompleteStep extends StatelessWidget {
                 : 'You gathered information, not a grade. That is what makes patterns clearer.',
             textAlign: TextAlign.center,
           ),
+          if (earned > 0) ...<Widget>[
+            const SizedBox(height: 22),
+            _CoinReward(
+              earned: earned,
+              balance: balance,
+              reducedMotion: reducedMotion,
+            ),
+          ],
           const SizedBox(height: 26),
           FilledButton(onPressed: onDone, child: const Text('Back to home')),
         ],

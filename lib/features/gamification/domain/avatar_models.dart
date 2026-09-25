@@ -18,6 +18,17 @@ enum CosmeticSlot {
 
   const CosmeticSlot(this.label);
   final String label;
+
+  /// Accessories can be taken off. Clothing, colour and expression cannot, so
+  /// the avatar is never left undressed.
+  bool get canBeRemoved => const <CosmeticSlot>{
+    CosmeticSlot.scarf,
+    CosmeticSlot.glasses,
+    CosmeticSlot.hat,
+    CosmeticSlot.back,
+    CosmeticSlot.trail,
+    CosmeticSlot.celebration,
+  }.contains(this);
 }
 
 enum CosmeticRarity { starter, common, bright, milestone }
