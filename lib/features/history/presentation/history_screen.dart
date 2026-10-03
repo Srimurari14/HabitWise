@@ -376,7 +376,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       )
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
-                          child: Text('${index + 1}. ${otherPlan.steps[index]}'),
+                          child: Text(
+                            '${index + 1}. ${otherPlan.steps[index]}',
+                          ),
                         ),
                     ],
                   ),

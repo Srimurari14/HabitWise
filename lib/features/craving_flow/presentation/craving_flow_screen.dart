@@ -1428,8 +1428,9 @@ class _FollowUpStepState extends State<_FollowUpStep> {
                         ),
                       ),
                     ],
-                    if (backup != null && !nothingHelped && _reHungry != true)
-                      ...<Widget>[
+                    if (backup != null &&
+                        !nothingHelped &&
+                        _reHungry != true) ...<Widget>[
                       const SizedBox(height: 14),
                       Text(
                         'Or the other plan: ${backup.title}',
@@ -1485,7 +1486,8 @@ class _FollowUpStepState extends State<_FollowUpStep> {
                         ),
                       ],
                     ),
-                    if (_reHungry == true && widget.eatPlan != null) ...<Widget>[
+                    if (_reHungry == true &&
+                        widget.eatPlan != null) ...<Widget>[
                       const SizedBox(height: 14),
                       Text(
                         widget.eatPlan!.title,
