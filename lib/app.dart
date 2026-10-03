@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/theme/app_theme.dart';
+import 'features/craving_flow/domain/craving_models.dart';
 import 'features/craving_flow/presentation/craving_flow_screen.dart';
 import 'features/gamification/domain/avatar_models.dart';
 import 'features/gamification/presentation/avatar_screen.dart';
@@ -33,7 +34,11 @@ class _HabitWiseAppState extends ConsumerState<HabitWiseApp> {
       ),
       GoRoute(
         path: '/craving',
-        builder: (context, state) => const CravingFlowScreen(),
+        builder: (context, state) => CravingFlowScreen(
+          repeat: state.extra is CravingRepeat
+              ? state.extra! as CravingRepeat
+              : null,
+        ),
       ),
       GoRoute(
         path: '/privacy',

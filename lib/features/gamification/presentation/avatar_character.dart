@@ -52,8 +52,10 @@ class _AvatarPainter extends CustomPainter {
   static const _hair = Color(0xFF2B2320);
 
   Color get _skin => switch (equipped['baseColor']) {
-    'base_coral' => const Color(0xFFEFC09A),
-    'base_cyan' => const Color(0xFF7A4B2E),
+    'skin_porcelain' => const Color(0xFFF3D3BC),
+    'skin_sand' => const Color(0xFFE3B591),
+    'skin_bronze' => const Color(0xFFA9683F),
+    'skin_espresso' => const Color(0xFF6E3F26),
     _ => const Color(0xFFC98D62),
   };
 
@@ -163,12 +165,14 @@ class _AvatarPainter extends CustomPainter {
 
   void _paintTorso(Canvas canvas, Paint outline) {
     final shirt = Paint()..color = _shirt;
+    const shoulder = 22.0;
+    const waist = 21.0;
     final body = Path()
-      ..moveTo(74, 72)
-      ..lineTo(116, 72)
-      ..quadraticBezierTo(121, 92, 118, 112)
-      ..lineTo(72, 112)
-      ..quadraticBezierTo(69, 92, 74, 72)
+      ..moveTo(95 - shoulder, 72)
+      ..lineTo(95 + shoulder, 72)
+      ..quadraticBezierTo(95 + shoulder + 3, 92, 95 + waist, 112)
+      ..lineTo(95 - waist, 112)
+      ..quadraticBezierTo(95 - shoulder - 3, 92, 95 - shoulder, 72)
       ..close();
     canvas
       ..drawPath(body, shirt)
@@ -187,7 +191,7 @@ class _AvatarPainter extends CustomPainter {
 
     for (final side in <int>[-1, 1]) {
       final swing = -stride * side;
-      final shoulderX = 95 + side * 22.0;
+      final shoulderX = 95 + side * 23.0;
       final upper = RRect.fromRectAndRadius(
         Rect.fromLTWH(shoulderX - 6, 74, 12, 22),
         const Radius.circular(6),

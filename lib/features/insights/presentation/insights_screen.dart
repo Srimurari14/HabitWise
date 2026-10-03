@@ -26,6 +26,23 @@ class InsightsScreen extends ConsumerWidget {
         error: (error, stackTrace) =>
             Center(child: Text('Could not load insights: $error')),
         data: (value) {
+          if (logs.isEmpty) {
+            return PageFrame(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const <Widget>[
+                  EmptyState(
+                    icon: Icons.insights_rounded,
+                    title: 'Nothing to show yet',
+                    message:
+                        'This page fills in from your own check-ins. After a '
+                        'few of them it shows which details repeat, what time '
+                        'of day they happen, and which plans moved your urge.',
+                  ),
+                ],
+              ),
+            );
+          }
           final snapshot = InsightEngine.build(
             logs: logs,
             profile: profile,
@@ -58,14 +75,16 @@ class InsightsScreen extends ConsumerWidget {
                     Expanded(
                       child: _MetricCard(
                         value: '${snapshot.last30Days}',
-                        label: 'last 30 days',
+                        label: 'check-ins, last 30 days',
+                        note: 'cravings, hunger and safety together',
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: _MetricCard(
                         value: '${snapshot.hungerCount}',
-                        label: 'hunger-first plans',
+                        label: 'ended in food, by plan',
+                        note: 'of ${snapshot.total} check-ins, all time',
                       ),
                     ),
                   ],
@@ -75,10 +94,12 @@ class InsightsScreen extends ConsumerWidget {
                   children: <Widget>[
                     Expanded(
                       child: _MetricCard(
-                        value: snapshot.averageUrgeChange == null
-                            ? '—'
-                            : snapshot.averageUrgeChange!.toStringAsFixed(1),
-                        label: 'average urge change',
+                        value: _urgeValue(snapshot.averageUrgeChange),
+                        label: _urgeLabel(snapshot.averageUrgeChange),
+                        note: snapshot.urgeChangeSample == 0
+                            ? 'nothing rated yet'
+                            : 'across ${snapshot.urgeChangeSample} rated '
+                                  'cravings',
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -87,7 +108,12 @@ class InsightsScreen extends ConsumerWidget {
                         value: snapshot.helpfulPlanRate == null
                             ? '—'
                             : '${(snapshot.helpfulPlanRate! * 100).round()}%',
-                        label: 'plans felt helpful',
+                        label: 'plans that worked',
+                        note: snapshot.helpfulSample == 0
+                            ? 'no plans rated yet'
+                            : 'of ${snapshot.helpfulSample} rated, plus '
+                                  '${snapshot.partlyHelpedCount} that half '
+                                  'worked',
                       ),
                     ),
                   ],
@@ -100,7 +126,10 @@ class InsightsScreen extends ConsumerWidget {
                         value: snapshot.planCompletionRate == null
                             ? '—'
                             : '${(snapshot.planCompletionRate! * 100).round()}%',
-                        label: 'primary plans completed',
+                        label: 'plans finished',
+                        note: snapshot.completionSample == 0
+                            ? 'none answered yet'
+                            : 'of ${snapshot.completionSample} answered',
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -110,6 +139,9 @@ class InsightsScreen extends ConsumerWidget {
                             ? '—'
                             : '${(snapshot.resistanceRate! * 100).round()}%',
                         label: 'moved past or redirected',
+                        note: snapshot.decisionSample == 0
+                            ? 'nothing recorded yet'
+                            : 'of ${snapshot.decisionSample} cravings',
                       ),
                     ),
                   ],
@@ -130,12 +162,13 @@ class InsightsScreen extends ConsumerWidget {
                 const SizedBox(height: 28),
                 const SectionHeader('What may be worth noticing'),
                 const SizedBox(height: 12),
-                if (snapshot.total < InsightEngine.minimumPatternSize)
+                if (snapshot.ordinaryCount < InsightEngine.minimumPatternSize)
                   EmptyState(
                     icon: Icons.auto_graph_rounded,
                     title: 'Still gathering your baseline',
-                    message:
-                        '${InsightEngine.minimumPatternSize - snapshot.total} more check-in(s) will unlock the first descriptive pattern. Nothing is inferred yet.',
+                    message: _baselineMessage(
+                      InsightEngine.minimumPatternSize - snapshot.ordinaryCount,
+                    ),
                   )
                 else if (snapshot.cards.isEmpty)
                   const EmptyState(
@@ -152,6 +185,31 @@ class InsightsScreen extends ConsumerWidget {
                 if (gameChecks.length >= 3) ...<Widget>[
                   const SizedBox(height: 16),
                   _GameInsightCard(games: gameChecks),
+                ],
+                const SizedBox(height: 28),
+                const SectionHeader('What has worked for you'),
+                const SizedBox(height: 12),
+                if (snapshot.planPerformance.isEmpty)
+                  const EmptyState(
+                    icon: Icons.checklist_rounded,
+                    title: 'No plans rated yet',
+                    message:
+                        'Once you have finished a few check-ins this lists the '
+                        'plans you were given, how often the urge fell '
+                        'afterwards, and the step you marked as the one that '
+                        'helped.',
+                  )
+                else
+                  for (final plan in snapshot.planPerformance.take(4)) ...[
+                    _PlanPerformanceCard(plan: plan),
+                    const SizedBox(height: 10),
+                  ],
+                if (snapshot.planPerformance.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 4),
+                  const Text(
+                    'These are counts from your own check-ins. A plan can be '
+                    'ahead simply because it is the one you were given most.',
+                  ),
                 ],
                 const SizedBox(height: 28),
                 const SectionHeader('Time of day'),
@@ -172,9 +230,12 @@ class InsightsScreen extends ConsumerWidget {
                                   child: LinearProgressIndicator(
                                     minHeight: 10,
                                     borderRadius: BorderRadius.circular(20),
-                                    value: snapshot.total == 0
+                                    // These counts only cover craving
+                                    // check-ins, so the bars have to be drawn
+                                    // against the same set.
+                                    value: snapshot.ordinaryCount == 0
                                         ? 0
-                                        : entry.value / snapshot.total,
+                                        : entry.value / snapshot.ordinaryCount,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -253,10 +314,39 @@ class _GameInsightCard extends StatelessWidget {
   }
 }
 
+/// A fall in the urge is good news, so it is shown as a drop rather than as a
+/// negative number with no unit.
+/// Patterns are built from craving check-ins only, so the countdown has to
+/// count those and not every check-in.
+String _baselineMessage(int remaining) {
+  final checkIns = remaining == 1 ? 'craving check-in' : 'craving check-ins';
+  return '$remaining more $checkIns will unlock the first pattern. Hunger and '
+      'safety check-ins are not counted here, because they never train what '
+      'the app suggests.';
+}
+
+String _urgeValue(double? change) {
+  if (change == null) return '—';
+  final rounded = double.parse(change.abs().toStringAsFixed(1));
+  if (rounded == 0) return '0';
+  return rounded.toStringAsFixed(1);
+}
+
+String _urgeLabel(double? change) {
+  if (change == null) return 'average urge change';
+  if (change < -0.05) return 'average urge drop';
+  if (change > 0.05) return 'average urge rise';
+  return 'average urge change';
+}
+
 class _MetricCard extends StatelessWidget {
-  const _MetricCard({required this.value, required this.label});
+  const _MetricCard({required this.value, required this.label, this.note});
   final String value;
   final String label;
+
+  /// The sample behind the number. The page promises sample sizes, so a
+  /// percentage without one does not belong here.
+  final String? note;
 
   @override
   Widget build(BuildContext context) {
@@ -267,6 +357,61 @@ class _MetricCard extends StatelessWidget {
           Text(value, style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 4),
           Text(label),
+          if (note != null) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              note!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PlanPerformanceCard extends StatelessWidget {
+  const _PlanPerformanceCard({required this.plan});
+  final PlanPerformance plan;
+
+  @override
+  Widget build(BuildContext context) {
+    final change = plan.averageChange;
+    final rated = plan.urgeFell;
+    return HabitCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(plan.title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 6),
+          Text(
+            plan.uses == 1
+                ? 'Used once.'
+                : 'Used ${plan.uses} times. The urge fell afterwards '
+                      '$rated of those.',
+          ),
+          if (change != null) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              change < -0.05
+                  ? 'Average drop of ${change.abs().toStringAsFixed(1)} points.'
+                  : change > 0.05
+                  ? 'Average rise of ${change.toStringAsFixed(1)} points.'
+                  : 'The urge averaged no change.',
+            ),
+          ],
+          if (plan.topStep != null) ...<Widget>[
+            const SizedBox(height: 8),
+            Text(
+              'Step you picked as the most helpful, '
+              '${plan.topStepCount == 1 ? 'once' : '${plan.topStepCount} times'}:',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const SizedBox(height: 4),
+            Text(plan.topStep!),
+          ],
         ],
       ),
     );

@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/habit_widgets.dart';
 import '../../../providers.dart';
+import '../../gamification/presentation/avatar_character.dart';
 import '../../profile/domain/health_profile.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -18,6 +19,7 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _controller = PageController();
   var _page = 0;
+  var _skin = 'skin_honey';
   var _ageBand = AgeBand.preferNotToSay;
   final _contexts = <HealthContext>{};
   final _medicationEffects = <MedicationEffect>{};
@@ -27,7 +29,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   var _glucoseSafety = false;
   var _saving = false;
 
-  static const _pages = 6;
+  static const _pages = 7;
 
   @override
   void dispose() {
@@ -70,6 +72,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       checkInEnabled: false,
     );
     await ref.read(repositoryProvider).saveProfile(profile);
+    final gamification = ref.read(gamificationRepositoryProvider);
+    final avatar = await gamification.getAvatar();
+    await gamification.saveAvatar(
+      avatar.copyWith(
+        equipped: <String, String>{...avatar.equipped, 'baseColor': _skin},
+      ),
+    );
     if (mounted) context.go('/home');
   }
 
@@ -146,6 +155,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       setState(() => _edSafetyMode = value),
                   onGlucoseChanged: (value) =>
                       setState(() => _glucoseSafety = value),
+                ),
+                _CharacterPage(
+                  skin: _skin,
+                  onSkinChanged: (value) => setState(() => _skin = value),
                 ),
                 const _ReadyPage(),
               ],
@@ -508,6 +521,85 @@ class _SafetyPage extends StatelessWidget {
           const SizedBox(height: 16),
           const Text(
             'HabitWise is a self-reflection and behavior-support tool, not emergency care or a medical device. For immediate danger, contact local emergency services.',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CharacterPage extends StatelessWidget {
+  const _CharacterPage({required this.skin, required this.onSkinChanged});
+
+  final String skin;
+  final ValueChanged<String> onSkinChanged;
+
+  static const _skins = <(String, String, Color)>[
+    ('skin_porcelain', 'Porcelain', Color(0xFFF3D3BC)),
+    ('skin_sand', 'Sand', Color(0xFFE3B591)),
+    ('skin_honey', 'Honey', Color(0xFFC98D62)),
+    ('skin_bronze', 'Bronze', Color(0xFFA9683F)),
+    ('skin_espresso', 'Espresso', Color(0xFF6E3F26)),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return PageFrame(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Make your character',
+            style: Theme.of(context).textTheme.headlineLarge,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'This is you in the app. You can change it any time, and earn '
+            'clothes for it as you use HabitWise.',
+          ),
+          const SizedBox(height: 18),
+          Center(
+            child: AvatarCharacter(
+              equipped: <String, String>{
+                'baseColor': skin,
+                'eyes': 'eyes_kind',
+                'expression': 'expression_ready',
+              },
+              size: 200,
+            ),
+          ),
+          const SizedBox(height: 22),
+          Text('Skin tone', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: <Widget>[
+              for (final option in _skins)
+                Semantics(
+                  button: true,
+                  selected: skin == option.$1,
+                  label: option.$2,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(40),
+                    onTap: () => onSkinChanged(option.$1),
+                    child: Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: option.$3,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: skin == option.$1
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).colorScheme.outlineVariant,
+                          width: skin == option.$1 ? 3 : 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),

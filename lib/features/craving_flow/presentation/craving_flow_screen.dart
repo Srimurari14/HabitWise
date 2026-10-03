@@ -15,11 +15,29 @@ import '../domain/craving_models.dart';
 import '../domain/medical_rules.dart';
 import '../domain/plan_explanation.dart';
 
-class CravingFlowScreen extends ConsumerWidget {
-  const CravingFlowScreen({super.key});
+class CravingFlowScreen extends ConsumerStatefulWidget {
+  const CravingFlowScreen({super.key, this.repeat});
+
+  /// Set when the check-in was started from an earlier one, so the craving,
+  /// the category and the detail are already known.
+  final CravingRepeat? repeat;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CravingFlowScreen> createState() => _CravingFlowScreenState();
+}
+
+class _CravingFlowScreenState extends ConsumerState<CravingFlowScreen> {
+  @override
+  void initState() {
+    super.initState();
+    final repeat = widget.repeat;
+    if (repeat != null) {
+      ref.read(cravingFlowControllerProvider.notifier).prefill(repeat);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(cravingFlowControllerProvider);
     final controller = ref.read(cravingFlowControllerProvider.notifier);
     final config = ref.watch(cravingConfigProvider);
@@ -91,6 +109,7 @@ class CravingFlowScreen extends ConsumerWidget {
               ),
               CravingFlowStep.followUp => _FollowUpStep(
                 state: state,
+                eatPlan: value.interventions['permission-to-eat'],
                 onChanged: controller.updateFollowUp,
                 onSave: controller.save,
               ),
@@ -1168,11 +1187,16 @@ class _NumberedStep extends StatelessWidget {
 class _FollowUpStep extends StatefulWidget {
   const _FollowUpStep({
     required this.state,
+    required this.eatPlan,
     required this.onChanged,
     required this.onSave,
   });
 
   final CravingFlowState state;
+
+  /// Shown only if someone corrects the hunger answer at the end of a flow
+  /// that did not work. It is the same permission plan the safety step uses.
+  final InterventionDefinition? eatPlan;
   final void Function({
     int? intensityAfter,
     CravingOutcome? outcome,
@@ -1180,6 +1204,7 @@ class _FollowUpStep extends StatefulWidget {
     int? helpfulStepIndex,
     bool? cravingReturned,
     Set<String>? contextTags,
+    bool? hungry,
   })
   onChanged;
   final Future<void> Function() onSave;
@@ -1193,11 +1218,35 @@ class _FollowUpStepState extends State<_FollowUpStep> {
       (widget.state.session.intensityAfter ??
               widget.state.session.intensityBefore)
           .toDouble();
+  // The slider has to start somewhere, so an untouched one would otherwise be
+  // saved as "the urge did not move", which is a real answer nobody gave.
+  late bool _rated = widget.state.session.intensityAfter != null;
+  // Null until the end of a flow that did not work, where the hunger question
+  // is worth asking a second time.
+  bool? _reHungry;
   late CravingOutcome? _outcome = widget.state.session.outcome;
   late bool? _planCompleted = widget.state.session.planCompleted;
   late int? _helpfulStepIndex = widget.state.session.helpfulStepIndex;
   late bool? _cravingReturned = widget.state.session.cravingReturned;
   final _tags = <String>{};
+
+  Future<void> _playGame() async {
+    final recommendation = widget.state.gameRecommendation;
+    if (recommendation == null) return;
+    await context.push<SignalShiftResult>(
+      '/signal-shift',
+      extra: SignalShiftLaunch(
+        source: GameSource.recommended,
+        durationMinutes: recommendation.durationMinutes,
+        mode: recommendation.mode,
+        cravingSessionId: widget.state.session.id,
+        category: widget.state.session.category?.name,
+        subtriggerId: widget.state.session.subtriggerId,
+        intensityBefore: widget.state.session.intensityBefore,
+        reason: recommendation.reason,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1211,6 +1260,19 @@ class _FollowUpStepState extends State<_FollowUpStep> {
       'medication_transition': 'Medication transition',
     };
     final safetyExit = widget.state.session.safetyExit != SafetyExit.none;
+    final askedForMore =
+        _outcome == CravingOutcome.partlyHelped ||
+        _outcome == CravingOutcome.needMoreSupport;
+    final backup = widget.state.backupPlan;
+    final game = widget.state.gameRecommendation;
+    // Still rough: either they said so, or the number they set is mid or above.
+    final stillStrong =
+        !safetyExit && (askedForMore || (_rated && _intensity.round() >= 5));
+    // They said none of the steps helped. The backup for most details is the
+    // same plan in different words, so offering it here reads as not listening.
+    final nothingHelped = _helpfulStepIndex != null && _helpfulStepIndex! < 0;
+    final offerMore =
+        stillStrong && (nothingHelped || backup != null || game != null);
     return PageFrame(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1224,16 +1286,21 @@ class _FollowUpStepState extends State<_FollowUpStep> {
           if (!safetyExit) ...<Widget>[
             const SizedBox(height: 22),
             Text(
-              'Urge now: ${_intensity.round()}',
+              _rated ? 'Urge now: ${_intensity.round()}' : 'Urge now',
               style: Theme.of(context).textTheme.titleLarge,
             ),
+            if (!_rated)
+              const Text('Move the slider, even if nothing changed.'),
             Slider(
               value: _intensity,
               min: 1,
               max: 10,
               divisions: 9,
               label: _intensity.round().toString(),
-              onChanged: (value) => setState(() => _intensity = value),
+              onChanged: (value) => setState(() {
+                _intensity = value;
+                _rated = true;
+              }),
             ),
             const SizedBox(height: 18),
             Text(
@@ -1324,6 +1391,130 @@ class _FollowUpStepState extends State<_FollowUpStep> {
               if (outcome != CravingOutcome.followedSafetyPlan)
                 const SizedBox(height: 9),
             ],
+            if (offerMore) ...<Widget>[
+              const SizedBox(height: 6),
+              HabitCard(
+                color: Theme.of(context).colorScheme.secondaryContainer,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Try one more thing',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      nothingHelped
+                          ? 'That plan did not fit. Nothing here is owed, and '
+                                'the check-in saves whatever you do next.'
+                          : 'The urge is still up. Nothing here is required, '
+                                'and the check-in saves whenever you want it '
+                                'to.',
+                    ),
+                    // The game is never offered to someone who has just said
+                    // they may be hungry. Food comes first, same as the safety
+                    // step at the start of the flow.
+                    if (game != null && _reHungry != true) ...<Widget>[
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _playGame,
+                          icon: const Icon(Icons.sports_esports_rounded),
+                          label: Text(
+                            'Play Signal Shift for '
+                            '${game.durationMinutes} minutes',
+                          ),
+                        ),
+                      ),
+                    ],
+                    if (backup != null && !nothingHelped && _reHungry != true)
+                      ...<Widget>[
+                      const SizedBox(height: 14),
+                      Text(
+                        'Or the other plan: ${backup.title}',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(backup.whyLine),
+                      const SizedBox(height: 12),
+                      for (var index = 0; index < backup.steps.length; index++)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _NumberedStep(
+                            number: index + 1,
+                            text: backup.steps[index],
+                          ),
+                        ),
+                    ],
+                    if (_reHungry != true &&
+                        (game != null || (backup != null && !nothingHelped)))
+                      const Text('Re-rate the urge above after you try it.'),
+                    const SizedBox(height: 16),
+                    const Divider(height: 1),
+                    const SizedBox(height: 14),
+                    Text(
+                      'One more question',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Are you sure you are not hungry? An urge that will not '
+                      'move is often plain hunger wearing a costume.',
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: <Widget>[
+                        ChoiceChip(
+                          label: const Text('I am sure'),
+                          selected: _reHungry == false,
+                          onSelected: (_) {
+                            setState(() => _reHungry = false);
+                            widget.onChanged(hungry: false);
+                          },
+                        ),
+                        ChoiceChip(
+                          label: const Text('Actually, I might be'),
+                          selected: _reHungry == true,
+                          onSelected: (_) {
+                            setState(() => _reHungry = true);
+                            widget.onChanged(hungry: true);
+                          },
+                        ),
+                      ],
+                    ),
+                    if (_reHungry == true && widget.eatPlan != null) ...<Widget>[
+                      const SizedBox(height: 14),
+                      Text(
+                        widget.eatPlan!.title,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(widget.eatPlan!.whyLine),
+                      const SizedBox(height: 12),
+                      for (
+                        var index = 0;
+                        index < widget.eatPlan!.steps.length;
+                        index++
+                      )
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _NumberedStep(
+                            number: index + 1,
+                            text: widget.eatPlan!.steps[index],
+                          ),
+                        ),
+                      const Text(
+                        'No timer and no coins for this one. Eating is the '
+                        'plan, not a failure of the other ones.',
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 18),
             Text(
               'Optional context',
@@ -1356,7 +1547,8 @@ class _FollowUpStepState extends State<_FollowUpStep> {
             onPressed:
                 widget.state.saving ||
                     (!safetyExit &&
-                        (_outcome == null ||
+                        (!_rated ||
+                            _outcome == null ||
                             _planCompleted == null ||
                             _helpfulStepIndex == null ||
                             _cravingReturned == null))
@@ -1374,7 +1566,7 @@ class _FollowUpStepState extends State<_FollowUpStep> {
                   },
             child: widget.state.saving
                 ? const CircularProgressIndicator(strokeWidth: 2)
-                : const Text('Save check-in'),
+                : Text(offerMore ? 'Save and stop here' : 'Save check-in'),
           ),
         ],
       ),

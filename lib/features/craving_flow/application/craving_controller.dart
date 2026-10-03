@@ -74,12 +74,30 @@ class CravingFlowController extends Notifier<CravingFlowState> {
   static const _rules = MedicalRulesEngine();
   static const _gameRules = GameRecommendationEngine();
 
+  CravingRepeat? _repeat;
+
   @override
   CravingFlowState build() {
     return CravingFlowState(
       step: CravingFlowStep.safety,
       session: CravingSession(id: _uuid.v4(), startedAt: DateTime.now()),
     );
+  }
+
+  /// Carries the craving, the category and the detail over from an earlier
+  /// check-in. The safety question is still asked, because hunger and glucose
+  /// are about this moment, not the last one.
+  void prefill(CravingRepeat repeat) => _repeat = repeat;
+
+  Future<void> _applyRepeat(CravingRepeat repeat) async {
+    final config = await ref.read(cravingConfigProvider.future);
+    final exists = config.subtriggers.any(
+      (item) => item.id == repeat.subtriggerId,
+    );
+    if (!exists) return;
+    await selectType(repeat.type);
+    selectCategory(repeat.category);
+    await selectSubtrigger(repeat.subtriggerId);
   }
 
   Future<void> answerSafety(SafetyAnswers answers) async {
@@ -95,6 +113,11 @@ class CravingFlowController extends Notifier<CravingFlowState> {
         step: CravingFlowStep.type,
         session: state.session.copyWith(hungry: answers.physicalHunger),
       );
+      final repeat = _repeat;
+      if (repeat != null) {
+        _repeat = null;
+        await _applyRepeat(repeat);
+      }
       return;
     }
     final config = await ref.read(cravingConfigProvider.future);
@@ -218,6 +241,7 @@ class CravingFlowController extends Notifier<CravingFlowState> {
     int? helpfulStepIndex,
     bool? cravingReturned,
     Set<String>? contextTags,
+    bool? hungry,
   }) {
     state = state.copyWith(
       session: state.session.copyWith(
@@ -227,6 +251,7 @@ class CravingFlowController extends Notifier<CravingFlowState> {
         helpfulStepIndex: helpfulStepIndex,
         cravingReturned: cravingReturned,
         contextTags: contextTags,
+        hungry: hungry,
       ),
     );
   }

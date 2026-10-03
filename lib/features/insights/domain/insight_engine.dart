@@ -21,10 +21,35 @@ class InsightCardData {
   final String kind;
 }
 
+/// How one plan has gone for this person, counted from their own check-ins.
+/// Everything here is a count of what they recorded, never a claim that the
+/// plan caused the change.
+class PlanPerformance {
+  const PlanPerformance({
+    required this.planId,
+    required this.title,
+    required this.uses,
+    required this.urgeFell,
+    required this.averageChange,
+    required this.topStep,
+    required this.topStepCount,
+  });
+
+  final String planId;
+  final String title;
+  final int uses;
+  final int urgeFell;
+  final double? averageChange;
+  final String? topStep;
+  final int topStepCount;
+}
+
 class InsightSnapshot {
   const InsightSnapshot({
     required this.total,
     required this.last30Days,
+    required this.ordinaryCount,
+    required this.safetyCount,
     required this.categoryCounts,
     required this.timeCounts,
     required this.hungerCount,
@@ -32,12 +57,24 @@ class InsightSnapshot {
     required this.cards,
     required this.topSubtrigger,
     required this.helpfulPlanRate,
+    required this.helpfulSample,
+    required this.partlyHelpedCount,
     required this.planCompletionRate,
+    required this.completionSample,
     required this.resistanceRate,
+    required this.decisionSample,
+    required this.urgeChangeSample,
+    required this.planPerformance,
   });
 
   final int total;
   final int last30Days;
+
+  /// Craving check-ins. Patterns, charts and rates are all built from these.
+  final int ordinaryCount;
+
+  /// Hunger, glucose and eating-concern check-ins, which train nothing.
+  final int safetyCount;
   final Map<TriggerCategory, int> categoryCounts;
   final Map<DayWindow, int> timeCounts;
   final int hungerCount;
@@ -45,8 +82,14 @@ class InsightSnapshot {
   final List<InsightCardData> cards;
   final String? topSubtrigger;
   final double? helpfulPlanRate;
+  final int helpfulSample;
+  final int partlyHelpedCount;
   final double? planCompletionRate;
+  final int completionSample;
   final double? resistanceRate;
+  final int decisionSample;
+  final int urgeChangeSample;
+  final List<PlanPerformance> planPerformance;
 }
 
 abstract final class InsightEngine {
@@ -90,16 +133,21 @@ abstract final class InsightEngine {
         .where((log) => log.intensityAfter != null)
         .map((log) => (log.intensityAfter! - log.intensityBefore).toDouble())
         .toList();
-    final learnableOutcomes = ordinary.where(
-      (log) => !log.nonLearnable && log.outcome != null,
-    );
+    final learnableOutcomes = ordinary
+        .where((log) => !log.nonLearnable && log.outcome != null)
+        .toList();
+    // "The urge fell, but I still need another strategy" is the answer people
+    // give when a plan half worked. Counting it as helpful inflates the one
+    // number that says whether the plans are any good, so it is counted apart.
     final helped = learnableOutcomes
         .where(
           (log) =>
               log.outcome == CravingOutcome.helped.name ||
-              log.outcome == CravingOutcome.partlyHelped.name ||
               log.outcome == CravingOutcome.resistedCraving.name,
         )
+        .length;
+    final partlyHelped = learnableOutcomes
+        .where((log) => log.outcome == CravingOutcome.partlyHelped.name)
         .length;
     final completionLogs = ordinary
         .where((log) => !log.nonLearnable && log.planCompleted != null)
@@ -130,6 +178,55 @@ abstract final class InsightEngine {
               .where((item) => item.id == topId)
               .firstOrNull
               ?.label;
+
+    final planLogs = <String, List<CravingLog>>{};
+    for (final log in ordinary) {
+      if (log.planId == null || log.nonLearnable) continue;
+      planLogs.putIfAbsent(log.planId!, () => <CravingLog>[]).add(log);
+    }
+    final planPerformance = <PlanPerformance>[];
+    planLogs.forEach((planId, entries) {
+      final rated = entries.where((log) => log.intensityAfter != null).toList();
+      final stepCounts = <int, int>{};
+      for (final log in entries) {
+        final index = log.helpfulStepIndex;
+        if (index == null || index < 0) continue;
+        stepCounts[index] = (stepCounts[index] ?? 0) + 1;
+      }
+      var topIndex = -1;
+      var topCount = 0;
+      stepCounts.forEach((index, count) {
+        if (count > topCount) {
+          topIndex = index;
+          topCount = count;
+        }
+      });
+      final steps = config.interventions[planId]?.steps ?? const <String>[];
+      planPerformance.add(
+        PlanPerformance(
+          planId: planId,
+          title: config.interventions[planId]?.title ?? planId,
+          uses: entries.length,
+          urgeFell: rated
+              .where((log) => log.intensityAfter! < log.intensityBefore)
+              .length,
+          averageChange: rated.isEmpty
+              ? null
+              : Stats.mean(
+                  rated.map((log) => log.intensityAfter! - log.intensityBefore),
+                ),
+          topStep: topIndex >= 0 && topIndex < steps.length
+              ? steps[topIndex]
+              : null,
+          topStepCount: topCount,
+        ),
+      );
+    });
+    planPerformance.sort((a, b) {
+      final byUses = b.uses.compareTo(a.uses);
+      if (byUses != 0) return byUses;
+      return (a.averageChange ?? 0).compareTo(b.averageChange ?? 0);
+    });
 
     final cards = <InsightCardData>[];
     if (ordinary.length >= minimumPatternSize && topId != null) {
@@ -210,21 +307,29 @@ abstract final class InsightEngine {
       last30Days: logs
           .where((log) => instant.difference(log.completedAt).inDays < 30)
           .length,
+      ordinaryCount: ordinary.length,
+      safetyCount: logs.length - ordinary.length,
       categoryCounts: categoryCounts,
       timeCounts: timeCounts,
       hungerCount: logs.where((log) => log.hungry == true).length,
       averageUrgeChange: changes.isEmpty ? null : Stats.mean(changes),
+      urgeChangeSample: changes.length,
       cards: cards,
       topSubtrigger: topLabel,
       helpfulPlanRate: learnableOutcomes.isEmpty
           ? null
           : helped / learnableOutcomes.length,
+      helpfulSample: learnableOutcomes.length,
+      partlyHelpedCount: partlyHelped,
       planCompletionRate: completionLogs.isEmpty
           ? null
           : completedPlans / completionLogs.length,
+      completionSample: completionLogs.length,
       resistanceRate: decisionLogs.isEmpty
           ? null
           : resisted / decisionLogs.length,
+      decisionSample: decisionLogs.length,
+      planPerformance: planPerformance,
     );
   }
 

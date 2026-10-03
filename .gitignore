@@ -49,3 +49,4 @@ app.*.map.json
 *.apk
 *.aab
 *.zip
+test/failures/

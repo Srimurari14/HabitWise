@@ -368,6 +368,14 @@ class HabitRepository {
     };
   }
 
+  /// Removes a single check-in. Coins already earned stay in the ledger: they
+  /// were earned by what the person did, not by the record of it.
+  Future<void> deleteLog(String id) async {
+    await (database.delete(
+      database.cravingLogs,
+    )..where((table) => table.id.equals(id))).go();
+  }
+
   Future<void> deleteAllData() async {
     await database.transaction(() async {
       await database.delete(database.gameSessions).go();
