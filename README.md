@@ -1,101 +1,119 @@
-# HabitWise mobile
+# HabitWise
 
-HabitWise is a private, offline-first Flutter app for understanding and responding to food cravings without shame, calorie tracking, weight goals, or willpower scoring. It supports iOS and Android from one codebase.
+HabitWise is a private, offline-first Flutter app for responding to food cravings without shame, calorie tracking, weight goals, or willpower scores. One codebase, Android and iOS. Nothing leaves the phone.
 
-The original Electron/Node project remains untouched in the adjacent `craving-coach` directory. This directory is the new phone-first product.
+The Flutter app is the whole repository. Earlier versions kept it in a `flutter_app/` subfolder next to prompts, notes and an older Electron prototype; those are gone and the app now sits at the top level.
 
-## What is implemented
+## What a check-in does
 
-- Six-step optional onboarding with privacy, health-context, medication-pattern, and safety settings.
-- Eight craving types, five root trigger families, and 26 JSON-defined subtriggers.
-- Resistance-first intervention plans with transparent driver hypotheses, supporting signals, plain-language mechanisms, checkable 5–10 minute actions, step-by-step rationale, and a second strategy when the first does not work.
-- Hunger-first routing: physical hunger immediately produces a permission-to-eat plan.
-- User-reported medication effects, including appetite returning as an ADHD medication wears off.
-- Psychiatric and physical context filters for ADHD/attention, anxiety, mood, cycle-related appetite, sleep, glucose needs, eating concerns, sensory needs, digestive needs, pain, and fatigue.
-- Glucose warning-state exit to an existing care plan; the app never diagnoses or calculates treatment.
-- Persistent eating-concern safety mode that removes delay, resistance, portion-control, and win/loss framing.
-- Transactional craving logging that records before/after intensity, plan completion, the most helpful action, recurrence, context, and the user's final decision. Safety, nourishment, and permission plans are never learnable—even if malformed data marks them otherwise.
-- History with filters and expanded plan-result details.
-- Insights with minimum sample sizes, visible denominators, completion and redirection rates, descriptive associations, and no causal claims.
-- Pure Dart descriptive statistics, correlations, Welch t-test, Mann–Whitney U, chi-square, OLS, and logistic regression.
-- Opt-in local reminders using device time and local history; no server is involved.
-- Light/dark/system themes, large tap targets, semantic labels, DM Sans, and Playfair Display.
-- Human-readable JSON export and two-step local-data deletion.
-- A fifth Avatar tab with an original layered character, earned-only cosmetics, a locker, saved outfits, momentum milestones, and comfort controls. No real-money currency, ads, loot boxes, or paid unlocks are present.
-- Signal Shift, a three-lane attention-shift game with standard, calm, reduced-motion, swipe, jump, and one-handed controls. Mistakes reset a combo but never eliminate the player.
-- Conservative game recommendations that are based on the current trigger rather than a diagnosis, never auto-launch, and are suppressed for hunger, physical-need, eating-concern, glucose-safety, sleep-risk, and late mood-activation contexts.
-- Separate local game history and cautious game insights that require at least three relevant before/after check-ins and never claim causation.
+1. **Safety first.** One tap for hunger. Glucose and eating-concern questions appear only if the profile asks for them. A yes to hunger goes straight to food: no timer, no coins, no craving logic.
+2. **Craving type.** Eight of them. The type only reorders the next list; it never changes the plan.
+3. **Closest need.** Five families: body, emotion, environment, habit, sensory.
+4. **Detail.** 26 of them in `assets/config/tree_v1.json`, each pointing at a plan and a backup.
+5. **Urge rating,** 1 to 10.
+6. **Plan.** Title, one-line reason, four steps, an optional timer, and a second plan underneath. Signal Shift may be offered here.
+7. **Follow-up.** Urge now, plan finished, which step helped, did it come back, what you did, optional context chips. If the urge is still up, the screen offers the second plan and the game, and asks once more whether you are sure you are not hungry. The exit is always visible and nothing is ever required.
 
-## Architecture
+Safety, hunger and permission check-ins are saved as notes. They never train what the app suggests and they earn no coins.
+
+## What is in the app
+
+- Seven-page optional setup: welcome, how it works, health context, medication patterns, safety settings, your character, and a ready page.
+- 27 plans in `assets/config/interventions_v1.json`, written in plain English, with every medical caveat kept intact.
+- Hunger-first routing, a glucose warning exit to the person's own care plan, and a permanent eating-concern mode that removes every delay, resistance and portion-control plan.
+- Health-context filters for attention, anxiety, mood, cycle, sleep, glucose, eating concerns, sensory needs, digestion, pain and fatigue, plus user-reported medication wear-off.
+- History with filters by type and date range, an outcome badge per row, a detail sheet, delete, and a one-tap repeat that carries the previous answers over.
+- Insights that show the sample behind every number, a section listing which plans actually moved the person's urge, and no causal claims anywhere.
+- Pure Dart statistics: descriptives, correlations, Welch t-test, Mann-Whitney U, chi-square, OLS, logistic regression.
+- An Avatar tab with a code-drawn human figure, 21 earned-only cosmetics, five skin tones, padlocks and prices that say how far off you are, and a preview before you buy.
+- Signal Shift, a three-lane attention game: swipe, tap, arrow keys or lane buttons, combo scoring, standard, calm, reduced-motion and one-handed modes. A hit costs points and never ends the run.
+- Game recommendations driven by the current trigger, never auto-launched, and suppressed for hunger, body-need, eating-concern, glucose, sleep-risk and late mood contexts.
+- Opt-in local reminders, light and dark themes, large tap targets, semantic labels.
+- JSON export and a two-step local wipe.
+
+No account, no analytics, no advertising, no in-app purchase, no paid currency.
+
+## Known gaps
+
+Honest list, so nobody rediscovers these the hard way:
+
+- The 26 detail paths share only 17 distinct plans, so different answers can produce the same screen, and most backups paraphrase their main plan.
+- `intentional-enjoyment` ("Choosing it on purpose") is written, excluded by the plan picker, and three tests assert it never appears.
+- In eating-concern mode 21 of the 27 plans are filtered out, so nearly every path lands on the same nourishment fallback.
+- Turning on glucose safety disables Signal Shift permanently, including when there are no warning signs.
+- Tests cover the safety rules, the plan choice for all 26 paths, the repositories and the setup screens. The craving screens themselves are still only covered by one golden test.
+
+## Layout
 
 ```text
 lib/
-  core/                   theme, reusable UI, notifications, statistics
+  core/                   theme, shared widgets, notifications, statistics
   data/
     local/                Drift schema, SQLCipher opening, secure key
-    repositories/         transactions, learning guardrails, export/delete
+    repositories/         transactions, learning guardrails, export and delete
   features/
     onboarding/
     home/
-    craving_flow/         JSON config, medical rules, controller, phone UI
-    gamification/         avatar model, cosmetics, recommendation rules, game
+    craving_flow/         config loading, medical rules, controller, screens
+    gamification/         avatar, cosmetics, recommendation rules, the game
     history/
     insights/
     profile/
 assets/
-  config/                 versioned tree and intervention definitions
-  fonts/                  bundled brand fonts; no runtime font fetch
+  config/                 versioned trigger tree, plans, cosmetics
+  fonts/                  bundled fonts, nothing fetched at runtime
+docs/                     medical safety design, release checklist
+store/                    listing copy and privacy policy
 ```
 
-Riverpod owns app and feature state, `go_router` owns navigation, Drift owns persistence, and `fl_chart` renders the compact insights chart.
+Riverpod holds state, `go_router` handles navigation, Drift on SQLCipher handles persistence, `fl_chart` draws the insights chart.
 
-## Toolchain
+## Running it
 
-- Flutter 3.44.0
-- Dart 3.12.0
-- Java 17 and an Android SDK for Android builds
-- Xcode on macOS for iOS builds
+Requires Flutter 3.44 or newer on the Dart 3.12 SDK line. Development is on Flutter 3.47.2 and Dart 3.13.2; continuous integration pins 3.44.0, which lints more strictly than a newer local toolchain, so a clean `flutter analyze` locally does not guarantee a green check.
 
-From this directory:
-
-```powershell
+```bash
 flutter pub get
 dart run build_runner build
 flutter analyze
-flutter test --exclude-tags golden
+flutter test
 flutter run
 ```
 
-The Windows environment used to create this handoff has Flutter at `C:\flutter_3_44\bin\flutter.bat`. Add it to `PATH` or substitute that full path in the commands.
+`dart run build_runner build` generates the Drift database code and has to run after a fresh clone or any schema change.
 
-Golden tests are tagged because font rasterization can vary by host OS. Regenerate and verify the baseline on the release host:
+Android needs Java 17 and the Android SDK. iOS needs Xcode on macOS. Android Studio is not required: VS Code with the Flutter extension works, and so does the command line.
 
-```powershell
-flutter test test/golden_test.dart --update-goldens
-flutter test test/golden_test.dart
+## Tests and CI
+
+`flutter test` runs everything including the golden test. Golden images are rasterized by the host, so a failure of a few hundred pixels after a UI change usually means the baseline is stale rather than broken:
+
+```bash
+flutter test --update-goldens test/golden_test.dart
+flutter test
 ```
+
+`.github/workflows/flutter.yml` runs on every push and pull request: `flutter pub get`, code generation, `dart format --set-exit-if-changed`, `flutter analyze`, `flutter test --exclude-tags golden`, and a debug APK build. Formatting is a hard failure, so run `dart format lib test` before pushing.
 
 ## Privacy implementation
 
-The database uses Drift on SQLCipher. `pubspec.yaml` selects the SQLCipher native asset through the `sqlite3` hook. A random 256-bit key is created on first launch and saved with `flutter_secure_storage`; it is not stored in the database or source. SQLCipher memory security and SQLite secure deletion are enabled. “Delete all” clears every app table and vacuums the encrypted database.
+Drift on SQLCipher. `pubspec.yaml` selects the SQLCipher native asset through the `sqlite3` hook. A random 256-bit key is created on first launch and stored with `flutter_secure_storage`, never in the database or the source. SQLCipher memory security and SQLite secure deletion are on. "Delete all" clears every table and vacuums the encrypted database. An export leaves the device only through a share destination the person picks.
 
-There is no account, advertising SDK, analytics SDK, telemetry client, in-app purchase, or paid currency. Notification schedules, avatar ownership, rewards, game sessions, and insight calculations remain local. An export leaves the device only through the operating-system share destination explicitly chosen by the user.
+## Medical boundaries
 
-## Medical and psychiatric boundaries
-
-Health details are optional context, not diagnoses. The rule order is:
+Health details are optional context, never diagnoses. The rule order is:
 
 1. Targeted safety checks.
-2. Current hunger and current user answer.
+2. Current hunger and the answer given right now.
 3. Learned local history.
 4. User-reported health or medication context.
-5. Base craving-type priors.
-6. Final intervention safety filter.
+5. Craving-type priors.
+6. A final safety filter over the chosen plans.
 
-Medication timing is never inferred from a drug name. A medication wear-off branch activates only when the user reports appetite returning and identifies their usual time window. The app can suggest making food easier to access and can suggest contacting a prescriber about disruptive effects; it cannot recommend changing a medication, dose, or schedule.
+Medication timing is never inferred from a drug name. The wear-off branch activates only when someone reports appetite returning and names their usual window. The app can suggest making food easier to reach and can suggest contacting a prescriber about disruptive effects. It cannot suggest changing a medication, a dose or a schedule.
 
-HabitWise is not emergency care, a diagnostic tool, a glucose-treatment calculator, or a replacement for a clinician or dietitian.
+HabitWise is not emergency care, a diagnostic tool, a glucose-treatment calculator, or a substitute for a clinician or dietitian.
 
-## Release notes
+## Release
 
-Android and iOS scaffolds are included. Production signing credentials, store-team identifiers, final privacy-policy hosting, support URLs, screenshots, and app icons must be supplied by the publisher before store submission. Release steps are in [`docs/release_checklist.md`](docs/release_checklist.md).
+Android and iOS scaffolds are included. Signing credentials, store identifiers, privacy-policy hosting, support URLs, screenshots and icons are still to be supplied. Steps are in [`docs/release_checklist.md`](docs/release_checklist.md).
