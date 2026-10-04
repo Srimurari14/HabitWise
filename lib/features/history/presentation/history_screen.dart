@@ -2,12 +2,14 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/widgets/habit_widgets.dart';
 import '../../../data/local/app_database.dart';
 import '../../../providers.dart';
 import '../../craving_flow/domain/craving_models.dart';
+import '../../craving_flow/domain/medical_rules.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
@@ -18,6 +20,7 @@ class HistoryScreen extends ConsumerStatefulWidget {
 
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   String _filter = 'all';
+  String _range = 'all';
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +35,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         error: (error, stackTrace) =>
             Center(child: Text('Could not load history: $error')),
         data: (items) {
-          final filtered = _applyFilter(items);
+          final filtered = _applyFilter(_applyRange(items));
           return PageFrame(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -44,29 +47,55 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 const SizedBox(height: 8),
                 const Text('A neutral record of what you noticed and tried.'),
                 const SizedBox(height: 18),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SegmentedButton<String>(
-                    segments: const <ButtonSegment<String>>[
-                      ButtonSegment(value: 'all', label: Text('All')),
-                      ButtonSegment(value: 'hunger', label: Text('Hunger')),
-                      ButtonSegment(value: 'body', label: Text('Body')),
-                      ButtonSegment(value: 'emotion', label: Text('Emotion')),
-                      ButtonSegment(value: 'habit', label: Text('Habit')),
+                // Filters only appear once there is something to filter.
+                if (items.isNotEmpty) ...<Widget>[
+                  DropdownMenu<String>(
+                    initialSelection: _filter,
+                    label: const Text('Show'),
+                    expandedInsets: EdgeInsets.zero,
+                    onSelected: (value) =>
+                        setState(() => _filter = value ?? 'all'),
+                    dropdownMenuEntries: const <DropdownMenuEntry<String>>[
+                      DropdownMenuEntry(value: 'all', label: 'All check-ins'),
+                      DropdownMenuEntry(value: 'hunger', label: 'Hunger'),
+                      DropdownMenuEntry(value: 'body', label: 'Body need'),
+                      DropdownMenuEntry(value: 'emotion', label: 'Emotional'),
+                      DropdownMenuEntry(value: 'habit', label: 'Habit loop'),
+                      DropdownMenuEntry(
+                        value: 'environment',
+                        label: 'Environment',
+                      ),
+                      DropdownMenuEntry(value: 'sensory', label: 'Sensory'),
+                      DropdownMenuEntry(
+                        value: 'games',
+                        label: 'Signal Shift only',
+                      ),
                     ],
-                    selected: <String>{_filter},
-                    showSelectedIcon: false,
-                    onSelectionChanged: (values) =>
-                        setState(() => _filter = values.first),
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  DropdownMenu<String>(
+                    initialSelection: _range,
+                    label: const Text('When'),
+                    expandedInsets: EdgeInsets.zero,
+                    onSelected: (value) =>
+                        setState(() => _range = value ?? 'all'),
+                    dropdownMenuEntries: const <DropdownMenuEntry<String>>[
+                      DropdownMenuEntry(value: 'all', label: 'All time'),
+                      DropdownMenuEntry(value: '7', label: 'Last 7 days'),
+                      DropdownMenuEntry(value: '30', label: 'Last 30 days'),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 20),
                 if (filtered.isEmpty)
-                  const EmptyState(
+                  EmptyState(
                     icon: Icons.history_rounded,
-                    title: 'No check-ins here yet',
-                    message:
-                        'Try another filter, or use the Home tab when you want to log a craving.',
+                    title: items.isEmpty
+                        ? 'No check-ins yet'
+                        : 'Nothing matches this filter',
+                    message: items.isEmpty
+                        ? 'Your check-ins will appear here. Start one from the Home tab whenever you want.'
+                        : 'Try a different filter or time range.',
                   )
                 else
                   for (
@@ -97,6 +126,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                           ?.label,
                       onTap: () => _showDetails(
                         context,
+                        ref,
                         filtered[index],
                         config?.subtriggers
                             .where(
@@ -104,11 +134,12 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                             )
                             .firstOrNull
                             ?.label,
+                        config?.interventions[filtered[index].planId]?.steps,
                       ),
                     ),
                     const SizedBox(height: 10),
                   ],
-                if (_filter == 'all' && games.isNotEmpty) ...<Widget>[
+                if (games.isNotEmpty) ...<Widget>[
                   const SizedBox(height: 24),
                   const SectionHeader('Signal Shift sessions'),
                   const SizedBox(height: 6),
@@ -129,6 +160,13 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     );
   }
 
+  List<CravingLog> _applyRange(List<CravingLog> items) {
+    final days = int.tryParse(_range);
+    if (days == null) return items;
+    final cutoff = DateTime.now().subtract(Duration(days: days));
+    return items.where((item) => item.completedAt.isAfter(cutoff)).toList();
+  }
+
   List<CravingLog> _applyFilter(List<CravingLog> items) {
     return switch (_filter) {
       'hunger' => items.where((item) => item.hungry == true).toList(),
@@ -146,6 +184,17 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         items
             .where((item) => item.category == TriggerCategory.habitual.name)
             .toList(),
+      'environment' =>
+        items
+            .where(
+              (item) => item.category == TriggerCategory.environmental.name,
+            )
+            .toList(),
+      'sensory' =>
+        items
+            .where((item) => item.category == TriggerCategory.sensory.name)
+            .toList(),
+      'games' => const <CravingLog>[],
       _ => items,
     };
   }
@@ -162,10 +211,39 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     return DateFormat('EEEE, MMMM d').format(date);
   }
 
+  /// The second plan the app chose for this detail and showed collapsed on the
+  /// plan screen. People open this sheet after a plan did not hold, so the plan
+  /// they were not given is the one useful thing to put in front of them.
+  static InterventionDefinition? _otherPlanFor(WidgetRef ref, CravingLog log) {
+    if (log.safetyExit != 'none' || log.subtriggerId == null) return null;
+    // If they said no step helped, the second plan for this detail is usually
+    // the same advice reworded, so putting it here reads as not listening.
+    if ((log.helpfulStepIndex ?? 0) < 0) return null;
+    final config = ref.read(cravingConfigProvider).value;
+    final profile = ref.read(profileProvider).value;
+    if (config == null || profile == null) return null;
+    SubtriggerDefinition? subtrigger;
+    for (final item in config.subtriggers) {
+      if (item.id == log.subtriggerId) subtrigger = item;
+    }
+    if (subtrigger == null) return null;
+    final chosen = const MedicalRulesEngine().choosePlans(
+      subtrigger: subtrigger,
+      config: config,
+      profile: profile,
+    );
+    final other = chosen.primary.id == log.planId
+        ? chosen.backup
+        : chosen.primary;
+    return other?.id == log.planId ? null : other;
+  }
+
   static Future<void> _showDetails(
     BuildContext context,
+    WidgetRef ref,
     CravingLog log,
     String? subtriggerLabel,
+    List<String>? planSteps,
   ) {
     final type = log.cravingType == null
         ? null
@@ -175,6 +253,18 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         : TriggerCategory.values.byName(log.category!);
     final tags = (jsonDecode(log.contextJson) as List<Object?>)
         .whereType<String>();
+    final otherPlan = _otherPlanFor(ref, log);
+    final repeat =
+        log.safetyExit == 'none' &&
+            log.cravingType != null &&
+            log.category != null &&
+            log.subtriggerId != null
+        ? CravingRepeat(
+            type: CravingType.values.byName(log.cravingType!),
+            category: TriggerCategory.values.byName(log.category!),
+            subtriggerId: log.subtriggerId!,
+          )
+        : null;
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -208,9 +298,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               ),
               if (log.intensityAfter != null)
                 _DetailRow(
-                  label: 'Urge reference',
+                  label: 'Urge',
                   value:
-                      '${log.intensityBefore} before • ${log.intensityAfter} after',
+                      '${log.intensityBefore} before, ${log.intensityAfter} after',
                 ),
               if (log.outcome != null)
                 _DetailRow(
@@ -227,6 +317,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   label: 'Most helpful action',
                   value: log.helpfulStepIndex! < 0
                       ? 'No single step'
+                      : (planSteps != null &&
+                            log.helpfulStepIndex! < planSteps.length)
+                      ? planSteps[log.helpfulStepIndex!]
                       : 'Step ${log.helpfulStepIndex! + 1}',
                 ),
               if (log.cravingReturned != null)
@@ -258,6 +351,98 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   ),
                 ),
               ],
+              if (otherPlan != null) ...<Widget>[
+                const SizedBox(height: 18),
+                HabitCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Also offered for this detail',
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        otherPlan.title,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(otherPlan.whyLine),
+                      const SizedBox(height: 12),
+                      for (
+                        var index = 0;
+                        index < otherPlan.steps.length;
+                        index++
+                      )
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            '${index + 1}. ${otherPlan.steps[index]}',
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    final router = GoRouter.of(context);
+                    Navigator.pop(context);
+                    router.push('/craving', extra: repeat);
+                  },
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  label: Text(
+                    repeat == null
+                        ? 'Start a check-in'
+                        : 'Same trigger, new check-in',
+                  ),
+                ),
+              ),
+              if (repeat != null) ...<Widget>[
+                const SizedBox(height: 6),
+                Text(
+                  'It asks the safety question again, then goes straight to '
+                  'the plan.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Delete this check-in?'),
+                        content: const Text(
+                          'It is removed from your history and from the '
+                          'patterns the app notices. Coins you already earned '
+                          'stay. This cannot be undone.',
+                        ),
+                        actions: <Widget>[
+                          OutlinedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Delete'),
+                          ),
+                          FilledButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Keep it'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirmed != true || !context.mounted) return;
+                    await ref.read(repositoryProvider).deleteLog(log.id);
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  label: const Text('Delete this check-in'),
+                ),
+              ),
             ],
           ),
         ),
@@ -358,6 +543,23 @@ class _HistoryCard extends StatelessWidget {
   final String? subtriggerLabel;
   final VoidCallback onTap;
 
+  /// What actually happened, which is what people scan a list for.
+  static String? _result(CravingLog log) {
+    final before = log.intensityBefore;
+    final after = log.intensityAfter;
+    if (after != null && log.safetyExit == 'none') {
+      final movement = after < before
+          ? 'Urge $before to $after'
+          : after > before
+          ? 'Urge rose $before to $after'
+          : 'Urge stayed at $before';
+      return movement;
+    }
+    if (log.hungry == true) return 'Ate instead';
+    if (log.safetyExit != 'none') return 'Safety plan';
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final type = log.cravingType == null
@@ -372,10 +574,9 @@ class _HistoryCard extends StatelessWidget {
           (log.hungry == true ? 'Hunger check-in' : 'Safety check-in'),
       subtitle: <String?>[
         DateFormat.jm().format(log.completedAt),
-        category?.label,
-        subtriggerLabel,
-        log.planTitle,
+        category?.label ?? subtriggerLabel,
       ].whereType<String>().join(' • '),
+      badge: _result(log),
       icon: log.hungry == true ? Icons.restaurant_rounded : Icons.route_rounded,
       onTap: onTap,
     );

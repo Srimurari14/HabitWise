@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 enum CosmeticSlot {
-  baseColor('Color'),
+  baseColor('Skin tone'),
   hair('Hair'),
   eyes('Eyes'),
   expression('Expression'),
@@ -163,11 +163,9 @@ class AvatarProfileData {
   const AvatarProfileData({
     this.name = 'Spark',
     this.equipped = const <String, String>{
-      'baseColor': 'base_plum',
+      'baseColor': 'skin_honey',
       'eyes': 'eyes_kind',
       'expression': 'expression_ready',
-      'top': 'top_cream',
-      'shoes': 'shoes_cloud',
     },
     this.preferences = const GamePreferences(),
   });

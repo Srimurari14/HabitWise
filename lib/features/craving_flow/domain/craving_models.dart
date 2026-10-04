@@ -45,6 +45,21 @@ enum CravingOutcome {
 
 enum SafetyExit { none, urgentGlucose, genuineHunger, eatingConcernSupport }
 
+/// Answers carried over from an earlier check-in so a repeat does not ask the
+/// same four questions again. The safety question is always asked again: it is
+/// about what the body needs right now, which the last check-in cannot know.
+class CravingRepeat {
+  const CravingRepeat({
+    required this.type,
+    required this.category,
+    required this.subtriggerId,
+  });
+
+  final CravingType type;
+  final TriggerCategory category;
+  final String subtriggerId;
+}
+
 class SubtriggerDefinition {
   const SubtriggerDefinition({
     required this.id,
