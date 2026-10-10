@@ -1,0 +1,167 @@
+{
+  "frame": 1254,
+  "body": {
+    "left": 216,
+    "top": 327,
+    "width": 815,
+    "height": 737
+  },
+  "items": {
+    "face_happy": {
+      "left": 392,
+      "top": 495,
+      "width": 467,
+      "height": 158
+    },
+    "back_backpack": {
+      "left": 249,
+      "top": 357,
+      "width": 715,
+      "height": 551
+    },
+    "back_cape": {
+      "left": 193,
+      "top": 571,
+      "width": 863,
+      "height": 378
+    },
+    "face_excited": {
+      "left": 392,
+      "top": 433,
+      "width": 468,
+      "height": 220
+    },
+    "face_focused": {
+      "left": 392,
+      "top": 486,
+      "width": 469,
+      "height": 167
+    },
+    "face_sad": {
+      "left": 392,
+      "top": 457,
+      "width": 469,
+      "height": 197
+    },
+    "face_surprised": {
+      "left": 392,
+      "top": 408,
+      "width": 469,
+      "height": 245
+    },
+    "glasses_round": {
+      "left": 384,
+      "top": 464,
+      "width": 491,
+      "height": 184
+    },
+    "glasses_sun": {
+      "left": 403,
+      "top": 480,
+      "width": 446,
+      "height": 142
+    },
+    "hat_aurora_circlet": {
+      "left": 390,
+      "top": 304,
+      "width": 485,
+      "height": 156
+    },
+    "hat_beanie": {
+      "left": 304,
+      "top": 138,
+      "width": 607,
+      "height": 470
+    },
+    "hat_bucket": {
+      "left": 271,
+      "top": 221,
+      "width": 718,
+      "height": 403
+    },
+    "hat_cap": {
+      "left": 348,
+      "top": 226,
+      "width": 555,
+      "height": 359
+    },
+    "hat_cosy_knit": {
+      "left": 332,
+      "top": 320,
+      "width": 586,
+      "height": 257
+    },
+    "hat_headphones": {
+      "left": 234,
+      "top": 237,
+      "width": 790,
+      "height": 451
+    },
+    "hat_party": {
+      "left": 453,
+      "top": 76,
+      "width": 521,
+      "height": 534
+    },
+    "outfit_aurora_cloak": {
+      "left": 102,
+      "top": 305,
+      "width": 1052,
+      "height": 669
+    },
+    "outfit_cosy_sweater": {
+      "left": 209,
+      "top": 587,
+      "width": 802,
+      "height": 387
+    },
+    "outfit_hoodie_blue": {
+      "left": 220,
+      "top": 546,
+      "width": 815,
+      "height": 428
+    },
+    "scarf_aurora_collar": {
+      "left": 88,
+      "top": 304,
+      "width": 1072,
+      "height": 670
+    },
+    "scarf_navy": {
+      "left": 298,
+      "top": 579,
+      "width": 654,
+      "height": 395
+    },
+    "scarf_red": {
+      "left": 296,
+      "top": 585,
+      "width": 657,
+      "height": 366
+    },
+    "shoes_aurora_boots": {
+      "left": 361,
+      "top": 914,
+      "width": 550,
+      "height": 155
+    },
+    "shoes_cosy_boots": {
+      "left": 361,
+      "top": 914,
+      "width": 525,
+      "height": 149
+    },
+    "shoes_sneaker_red": {
+      "left": 379,
+      "top": 952,
+      "width": 672,
+      "height": 119
+    },
+    "outfit_urban_explorer": {
+      "left": 164,
+      "top": 174,
+      "width": 997,
+      "height": 889
+    }
+  }
+}

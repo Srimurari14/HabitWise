@@ -6,7 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/habit_widgets.dart';
 import '../../../providers.dart';
-import '../../gamification/presentation/avatar_character.dart';
+import '../../gamification/presentation/mascot/mascot_character.dart';
 import '../../profile/domain/health_profile.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -19,7 +19,7 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _controller = PageController();
   var _page = 0;
-  var _skin = 'skin_honey';
+  var _bodyColour = 'body_violet';
   var _ageBand = AgeBand.preferNotToSay;
   final _contexts = <HealthContext>{};
   final _medicationEffects = <MedicationEffect>{};
@@ -76,7 +76,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final avatar = await gamification.getAvatar();
     await gamification.saveAvatar(
       avatar.copyWith(
-        equipped: <String, String>{...avatar.equipped, 'baseColor': _skin},
+        equipped: <String, String>{
+          ...avatar.equipped,
+          'baseColor': _bodyColour,
+        },
       ),
     );
     if (mounted) context.go('/home');
@@ -157,8 +160,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       setState(() => _glucoseSafety = value),
                 ),
                 _CharacterPage(
-                  skin: _skin,
-                  onSkinChanged: (value) => setState(() => _skin = value),
+                  bodyColour: _bodyColour,
+                  onColourChanged: (value) =>
+                      setState(() => _bodyColour = value),
                 ),
                 const _ReadyPage(),
               ],
@@ -529,17 +533,19 @@ class _SafetyPage extends StatelessWidget {
 }
 
 class _CharacterPage extends StatelessWidget {
-  const _CharacterPage({required this.skin, required this.onSkinChanged});
+  const _CharacterPage({
+    required this.bodyColour,
+    required this.onColourChanged,
+  });
 
-  final String skin;
-  final ValueChanged<String> onSkinChanged;
+  final String bodyColour;
+  final ValueChanged<String> onColourChanged;
 
-  static const _skins = <(String, String, Color)>[
-    ('skin_porcelain', 'Porcelain', Color(0xFFF3D3BC)),
-    ('skin_sand', 'Sand', Color(0xFFE3B591)),
-    ('skin_honey', 'Honey', Color(0xFFC98D62)),
-    ('skin_bronze', 'Bronze', Color(0xFFA9683F)),
-    ('skin_espresso', 'Espresso', Color(0xFF6E3F26)),
+  static const _colours = <(String, String, Color)>[
+    ('body_violet', 'Violet', Color(0xFF8B5CF6)),
+    ('body_sky', 'Sky', Color(0xFF4FA8F5)),
+    ('body_blossom', 'Blossom', Color(0xFFF2789F)),
+    ('body_mint', 'Mint', Color(0xFF5FD3B2)),
   ];
 
   @override
@@ -559,30 +565,29 @@ class _CharacterPage extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Center(
-            child: AvatarCharacter(
+            child: MascotCharacter(
               equipped: <String, String>{
-                'baseColor': skin,
-                'eyes': 'eyes_kind',
-                'expression': 'expression_ready',
+                'baseColor': bodyColour,
+                'expression': 'face_happy',
               },
               size: 200,
             ),
           ),
           const SizedBox(height: 22),
-          Text('Skin tone', style: Theme.of(context).textTheme.titleMedium),
+          Text('Colour', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 10),
           Wrap(
             spacing: 12,
             runSpacing: 12,
             children: <Widget>[
-              for (final option in _skins)
+              for (final option in _colours)
                 Semantics(
                   button: true,
-                  selected: skin == option.$1,
+                  selected: bodyColour == option.$1,
                   label: option.$2,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(40),
-                    onTap: () => onSkinChanged(option.$1),
+                    onTap: () => onColourChanged(option.$1),
                     child: Container(
                       width: 52,
                       height: 52,
@@ -590,10 +595,10 @@ class _CharacterPage extends StatelessWidget {
                         color: option.$3,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: skin == option.$1
+                          color: bodyColour == option.$1
                               ? Theme.of(context).colorScheme.primary
                               : Theme.of(context).colorScheme.outlineVariant,
-                          width: skin == option.$1 ? 3 : 1,
+                          width: bodyColour == option.$1 ? 3 : 1,
                         ),
                       ),
                     ),

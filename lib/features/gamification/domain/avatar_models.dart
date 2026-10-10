@@ -5,9 +5,10 @@ enum CosmeticSlot {
   hair('Hair'),
   eyes('Eyes'),
   expression('Expression'),
-  top('Top'),
+  top('Outfit'),
   bottom('Bottom'),
   shoes('Shoes'),
+  pet('Companion'),
   scarf('Scarf'),
   glasses('Glasses'),
   hat('Hat'),
@@ -26,6 +27,7 @@ enum CosmeticSlot {
     CosmeticSlot.glasses,
     CosmeticSlot.hat,
     CosmeticSlot.back,
+    CosmeticSlot.pet,
     CosmeticSlot.trail,
     CosmeticSlot.celebration,
   }.contains(this);
@@ -163,9 +165,8 @@ class AvatarProfileData {
   const AvatarProfileData({
     this.name = 'Spark',
     this.equipped = const <String, String>{
-      'baseColor': 'skin_honey',
-      'eyes': 'eyes_kind',
-      'expression': 'expression_ready',
+      'baseColor': 'body_violet',
+      'expression': 'face_happy',
     },
     this.preferences = const GamePreferences(),
   });
@@ -242,11 +243,23 @@ class GameRecommendation {
   final String safetyNote;
 }
 
+/// The games in the app. Both are visual tasks by design: craving imagery is
+/// visual, so a word or audio game would not do the same job.
+enum GameKind {
+  signalShift('signal_shift', 'Signal Shift'),
+  focusStack('focus_stack', 'Focus Stack');
+
+  const GameKind(this.key, this.label);
+  final String key;
+  final String label;
+}
+
 class SignalShiftLaunch {
   const SignalShiftLaunch({
     required this.source,
     required this.durationMinutes,
     required this.mode,
+    this.kind = GameKind.signalShift,
     this.cravingSessionId,
     this.category,
     this.subtriggerId,
@@ -257,6 +270,7 @@ class SignalShiftLaunch {
   const SignalShiftLaunch.practice({
     this.durationMinutes = 3,
     this.mode = GameMode.standard,
+    this.kind = GameKind.signalShift,
   }) : source = GameSource.practice,
        cravingSessionId = null,
        category = null,
@@ -264,6 +278,7 @@ class SignalShiftLaunch {
        intensityBefore = null,
        reason = null;
 
+  final GameKind kind;
   final GameSource source;
   final int durationMinutes;
   final GameMode mode;

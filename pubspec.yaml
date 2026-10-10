@@ -42,6 +42,8 @@ flutter:
   assets:
     - assets/config/
     - assets/images/
+    - assets/mascot/body/
+    - assets/mascot/layers/
   fonts:
     - family: Playfair Display
       fonts:

@@ -48,6 +48,10 @@ class GamificationRepository {
               ),
             );
       }
+      // The human character was replaced by the blob mascot, so anything
+      // equipped or owned under the old ids is mapped across rather than left
+      // pointing at an item that no longer exists.
+      await _migrateToMascot(catalog);
       for (final item in catalog.items.where((item) => item.starter)) {
         await database
             .into(database.ownedCosmetics)
@@ -67,6 +71,169 @@ class GamificationRepository {
             mode: InsertMode.insertOrIgnore,
           );
     });
+  }
+
+  static const _mascotMigration = <String, String?>{
+    'skin_porcelain': 'body_cloud',
+    'skin_sand': 'body_sun',
+    'skin_honey': 'body_violet',
+    'skin_bronze': 'body_ember',
+    'skin_espresso': 'body_ink',
+    'expression_ready': 'face_happy',
+    'expression_focus': 'face_focused',
+    // Eyes and the human clothes have no blob equivalent yet. They are
+    // dropped rather than silently equipped as something invisible.
+    'scarf_lavender': 'scarf_red',
+    'eyes_kind': null,
+    'eyes_star': null,
+    'top_cream': null,
+    'top_coral': null,
+    'bottom_night': null,
+    'shoes_cloud': null,
+    'shoes_spark': null,
+    // Dropped when the wardrobe was rebuilt from the mascot renders. Nothing
+    // in the new set is close enough to count as the same item, so these are
+    // refunded rather than swapped.
+    'hat_frog': null,
+    'hat_wizard': null,
+    'hat_astronaut': null,
+    'hat_pirate': null,
+    'outfit_hoodie_cream': null,
+    'outfit_jacket_red': null,
+    'outfit_hoodie_green': null,
+    'outfit_hoodie_black': null,
+    'outfit_spacesuit': null,
+    'outfit_denim': null,
+    'outfit_tee_bag': null,
+    'shoes_sneaker_purple': null,
+    'shoes_canvas_red': null,
+    'shoes_runner_green': null,
+    'shoes_boot_black': null,
+    'shoes_runner_orange': null,
+    'shoes_slipon_blue': null,
+    'shoes_hightop_purple': null,
+    'pet_cat': null,
+    'pet_penguin': null,
+    'pet_chick': null,
+    'pet_sprout': null,
+    'pet_robot': null,
+    'pet_cloud': null,
+    'pet_star': null,
+    // Three slots nothing in the app ever drew, and a milestone item that was
+    // never in the catalogue at all. Sold or granted, they did nothing.
+    'trail_comet': null,
+    'celebration_confetti': null,
+    'background_dawn': null,
+    'back_wings': null,
+  };
+
+  /// What the dropped items cost. The catalogue no longer lists them, so their
+  /// price has to live somewhere for the refund to be honest.
+  static const _refundPrices = <String, int>{
+    'hat_frog': 90,
+    'hat_wizard': 120,
+    'hat_astronaut': 150,
+    'hat_pirate': 120,
+    'outfit_hoodie_cream': 75,
+    'outfit_jacket_red': 90,
+    'outfit_hoodie_green': 75,
+    'outfit_hoodie_black': 75,
+    'outfit_spacesuit': 150,
+    'outfit_denim': 90,
+    'outfit_tee_bag': 75,
+    'shoes_sneaker_purple': 50,
+    'shoes_canvas_red': 50,
+    'shoes_runner_green': 50,
+    'shoes_boot_black': 65,
+    'shoes_runner_orange': 50,
+    'shoes_slipon_blue': 50,
+    'shoes_hightop_purple': 65,
+    'pet_cat': 200,
+    'pet_penguin': 200,
+    'pet_chick': 160,
+    'pet_sprout': 160,
+    'pet_robot': 240,
+    'pet_cloud': 200,
+    'pet_star': 240,
+    'trail_comet': 120,
+    'background_dawn': 75,
+  };
+
+  /// Rewrites the saved profile and the owned list from the old character's
+  /// item ids. Anything paid for that has no replacement is refunded, because
+  /// losing a purchase to an art change is not the player's problem.
+  Future<void> _migrateToMascot(CosmeticCatalog catalog) async {
+    final owned = await database.select(database.ownedCosmetics).get();
+    var refund = 0;
+    for (final row in owned) {
+      if (!_mascotMigration.containsKey(row.itemId)) continue;
+      final replacement = _mascotMigration[row.itemId];
+      await (database.delete(
+        database.ownedCosmetics,
+      )..where((table) => table.itemId.equals(row.itemId))).go();
+      if (replacement != null) {
+        await database
+            .into(database.ownedCosmetics)
+            .insert(
+              OwnedCosmeticsCompanion.insert(
+                itemId: replacement,
+                acquiredAt: row.acquiredAt,
+                source: row.source,
+              ),
+              mode: InsertMode.insertOrIgnore,
+            );
+      } else if (row.source == 'purchase') {
+        refund +=
+            catalog.byId(row.itemId)?.price ?? _refundPrices[row.itemId] ?? 0;
+      }
+    }
+    if (refund > 0) {
+      await database
+          .into(database.coinLedger)
+          .insert(
+            CoinLedgerCompanion.insert(
+              eventId: 'mascot-refund',
+              createdAt: DateTime.now(),
+              amount: refund,
+              reason: 'Refund for items the new character cannot wear',
+              sourceType: 'refund',
+            ),
+            mode: InsertMode.insertOrIgnore,
+          );
+    }
+
+    final profile = await (database.select(
+      database.avatarProfiles,
+    )..where((table) => table.id.equals(1))).getSingleOrNull();
+    if (profile == null) return;
+    final avatar = AvatarProfileData.decode(profile.payload);
+    final equipped = <String, String>{};
+    var changed = false;
+    avatar.equipped.forEach((slot, itemId) {
+      if (!_mascotMigration.containsKey(itemId)) {
+        equipped[slot] = itemId;
+        return;
+      }
+      changed = true;
+      final replacement = _mascotMigration[itemId];
+      if (replacement != null) equipped[slot] = replacement;
+    });
+    if (!changed) return;
+    equipped.putIfAbsent('baseColor', () => 'body_violet');
+    equipped.putIfAbsent('expression', () => 'face_happy');
+    await database
+        .into(database.avatarProfiles)
+        .insertOnConflictUpdate(
+          AvatarProfilesCompanion.insert(
+            id: const Value(1),
+            payload: AvatarProfileData(
+              name: avatar.name,
+              equipped: equipped,
+              preferences: avatar.preferences,
+            ).encode(),
+            updatedAt: DateTime.now(),
+          ),
+        );
   }
 
   Future<void> saveAvatar(AvatarProfileData avatar) async {
@@ -269,6 +436,7 @@ class GamificationRepository {
               intensityAfter: Value(intensityAfter),
               durationSeconds: durationSeconds,
               mode: launch.mode.name,
+              game: Value(launch.kind.key),
               score: score,
               coinsAwarded: Value(reward),
               completed: Value(completed),

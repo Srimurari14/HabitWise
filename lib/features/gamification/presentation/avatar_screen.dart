@@ -6,7 +6,8 @@ import '../../../core/widgets/habit_widgets.dart';
 import '../../../data/local/app_database.dart';
 import '../../../providers.dart';
 import '../domain/avatar_models.dart';
-import 'avatar_character.dart';
+import 'mascot/mascot_assets.dart';
+import 'mascot/mascot_character.dart';
 
 class AvatarScreen extends ConsumerWidget {
   const AvatarScreen({super.key});
@@ -89,6 +90,34 @@ class AvatarScreen extends ConsumerWidget {
                 ),
                 icon: const Icon(Icons.sports_esports_rounded),
                 label: const Text('Practice Signal Shift'),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () => context.push(
+                  '/focus-stack',
+                  extra: SignalShiftLaunch.practice(
+                    kind: GameKind.focusStack,
+                    mode: avatar.preferences.reducedMotion
+                        ? GameMode.reducedMotion
+                        : avatar.preferences.calmMode
+                        ? GameMode.calm
+                        : GameMode.standard,
+                  ),
+                ),
+                icon: const Icon(Icons.grid_view_rounded),
+                label: const Text('Practice Focus Stack'),
+              ),
+              const SizedBox(height: 10),
+              // Temporary. Remove once the mascot is approved or dropped.
+              TextButton.icon(
+                onPressed: () => context.push('/mascot-lab'),
+                icon: const Icon(Icons.science_outlined),
+                label: const Text('Mascot lab (work in progress)'),
+              ),
+              TextButton.icon(
+                onPressed: () => context.push('/signal-lab'),
+                icon: const Icon(Icons.auto_awesome_outlined),
+                label: const Text('Signal Shift look (work in progress)'),
               ),
               const SizedBox(height: 8),
               const Text(
@@ -242,7 +271,7 @@ class _AvatarHero extends StatelessWidget {
             ),
             Positioned(
               bottom: 10,
-              child: AvatarCharacter(equipped: avatar.equipped, size: 175),
+              child: MascotCharacter(equipped: avatar.equipped, size: 175),
             ),
             Positioned(
               left: 18,
@@ -360,7 +389,7 @@ class _PreviewFigure extends StatelessWidget {
       width: 130,
       child: Column(
         children: <Widget>[
-          AvatarCharacter(equipped: equipped, size: 110),
+          MascotCharacter(equipped: equipped, size: 110),
           const SizedBox(height: 6),
           Text(
             label,
@@ -657,7 +686,10 @@ class _CosmeticGrid extends ConsumerWidget {
                 children: <Widget>[
                   Row(
                     children: <Widget>[
-                      Icon(_icon(item.slot), size: 22),
+                      // The item itself, not a generic slot icon. Being able
+                      // to see what you are saving for is the whole point of
+                      // showing a locked item at all.
+                      _ItemThumb(itemId: item.id, slot: item.slot),
                       const Spacer(),
                       if (!owned)
                         Icon(
@@ -677,7 +709,7 @@ class _CosmeticGrid extends ConsumerWidget {
                         ),
                     ],
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 4),
                   Text(
                     item.name,
                     maxLines: 1,
@@ -765,6 +797,54 @@ class _PreferenceSwitches extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A small picture of a cosmetic, taken from the same layer art the mascot
+/// wears.
+///
+/// The art is decoded once into a shared cache, which is usually still empty
+/// on the frame this tile first builds. Without waiting for it, every tile
+/// falls back to its slot icon and never recovers, which is why the locker
+/// was a wall of coat hangers.
+class _ItemThumb extends StatefulWidget {
+  const _ItemThumb({required this.itemId, required this.slot});
+
+  final String itemId;
+  final CosmeticSlot slot;
+
+  @override
+  State<_ItemThumb> createState() => _ItemThumbState();
+}
+
+class _ItemThumbState extends State<_ItemThumb> {
+  @override
+  void initState() {
+    super.initState();
+    if (!MascotAssets.ready) {
+      MascotAssets.ensureLoaded().then((_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // body() falls back to the default colour for anything it does not know,
+    // so it is only asked about ids that really are body colours.
+    final image =
+        MascotAssets.layer(widget.itemId) ??
+        (widget.itemId.startsWith('body_')
+            ? MascotAssets.body(widget.itemId)
+            : null);
+    if (image == null) {
+      return Icon(_CosmeticGrid._icon(widget.slot), size: 34);
+    }
+    return SizedBox(
+      height: 38,
+      width: 38,
+      child: RawImage(image: image, fit: BoxFit.contain),
     );
   }
 }

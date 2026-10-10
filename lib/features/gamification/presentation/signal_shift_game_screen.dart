@@ -1,15 +1,18 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/habit_widgets.dart';
+import '../../../data/local/app_database.dart';
 import '../../../providers.dart';
 import '../domain/avatar_models.dart';
-import 'avatar_character.dart';
+import 'mascot/mascot_character.dart';
 
 class SignalShiftGameScreen extends ConsumerStatefulWidget {
   const SignalShiftGameScreen({required this.launch, super.key});
@@ -21,10 +24,15 @@ class SignalShiftGameScreen extends ConsumerStatefulWidget {
       _SignalShiftGameScreenState();
 }
 
-class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
+class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
+    with SingleTickerProviderStateMixin {
   final _random = math.Random();
   final List<_TrackObject> _objects = <_TrackObject>[];
-  Timer? _timer;
+  // The loop used to run on a 50ms timer, which is 20 frames a second on a
+  // phone that draws 60 or 120. Everything now moves by real elapsed time on
+  // the frame ticker instead.
+  Ticker? _ticker;
+  Duration _lastFrame = Duration.zero;
   late int _durationMinutes = widget.launch.durationMinutes;
   late GameMode _mode = widget.launch.mode;
   DateTime? _startedAt;
@@ -33,8 +41,20 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
   int _score = 0;
   int _combo = 0;
   int _bestCombo = 0;
-  int _lastSpawnTick = 0;
-  int _tick = 0;
+  double _sinceSpawn = 0;
+  double _runTime = 0;
+  // Rows waiting to be dropped. A wave is a short designed sequence of rows,
+  // which is what makes the track read as patterns instead of noise.
+  final List<List<_Cell>> _pendingRows = <List<_Cell>>[];
+
+  /// How far the combo is allowed to multiply the track speed. Raise it if
+  /// triple speed stops feeling like enough.
+  static const _comboSpeedCap = 3;
+  double _lean = 0;
+
+  /// Counts down after collecting a spark so the mascot can react to it.
+  double _collect = 0;
+  double _scroll = 0;
   bool _started = false;
   bool _paused = false;
   bool _jumping = false;
@@ -51,7 +71,7 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _ticker?.dispose();
     _flashTimer?.cancel();
     _focusNode.dispose();
     super.dispose();
@@ -72,35 +92,72 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
       _startedAt = DateTime.now();
       _intensityAfter = widget.launch.intensityBefore ?? 5;
     });
-    _timer = Timer.periodic(const Duration(milliseconds: 50), (_) => _step());
+    _lastFrame = Duration.zero;
+    _ticker = createTicker(_onFrame)..start();
+    // The Play button still holds focus at this point, so the key listener
+    // never sees an arrow press until something hands focus back to it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
   }
 
-  void _step() {
+  void _onFrame(Duration elapsed) {
+    final frame = elapsed - _lastFrame;
+    _lastFrame = elapsed;
     if (!mounted || _paused || _finished) return;
-    const delta = Duration(milliseconds: 50);
+    // A frame after the app was backgrounded can be arbitrarily long, so the
+    // step is capped at a tenth of a second rather than teleporting everything.
+    final seconds = math.min(frame.inMicroseconds / 1000000, 0.1);
+    if (seconds <= 0) return;
+    _step(seconds);
+  }
+
+  /// A smoothed frame rate, used to decide how much of the look this device
+  /// can afford. The aura is the one expensive part: four wide strokes down
+  /// the whole screen per stream. On a machine that cannot keep up, drawing
+  /// fewer of them beats dropping frames.
+  double _fps = 60;
+
+  void _step(double seconds) {
     final target = Duration(minutes: _durationMinutes);
     setState(() {
-      _elapsed += delta;
-      _tick++;
-      final spawnEvery = _mode == GameMode.calm ? 21 : 15;
-      if (_tick - _lastSpawnTick >= spawnEvery) {
-        _lastSpawnTick = _tick;
-        _objects.add(
-          _TrackObject(
-            lane: _random.nextInt(3),
-            y: -0.08,
-            spark: _random.nextDouble() > 0.27,
-          ),
-        );
+      _fps = _fps * 0.9 + (1 / seconds) * 0.1;
+      _elapsed += Duration(microseconds: (seconds * 1000000).round());
+      _runTime += seconds;
+      // Everything scales with how far through the session you are, so the
+      // last minute is not the same as the first.
+      final progress = (_elapsed.inMilliseconds / target.inMilliseconds).clamp(
+        0.0,
+        1.0,
+      );
+      // Seconds between rows, closing up as the session goes on.
+      final baseGap = _mode == GameMode.calm ? 1.1 : 0.85;
+      final rowGap = baseGap - (_mode == GameMode.calm ? 0.25 : 0.4) * progress;
+      _sinceSpawn += seconds;
+      if (_sinceSpawn >= rowGap) {
+        _sinceSpawn = 0;
+        _spawnRow(progress);
       }
-      final speed = _mode == GameMode.calm
-          ? 0.006
+      // Track heights per second. The old numbers were per 50ms tick and felt
+      // sluggish, so what used to be double speed is now the starting speed.
+      final baseSpeed = _mode == GameMode.calm
+          ? 0.24
           : _mode == GameMode.reducedMotion
-          ? 0.008
-          : 0.011;
+          ? 0.32
+          : 0.40;
+      // Speed is the combo. A run of two is double speed, three is triple.
+      // It stops at triple on purpose: at the base speed an object takes about
+      // 3.6 seconds to arrive, so triple leaves 1.2 seconds to see it, decide
+      // and swipe, and anything faster than that stops being readable rather
+      // than becoming harder. Calm mode stops at double.
+      final comboCap = _mode == GameMode.calm ? 2 : _comboSpeedCap;
+      final speed =
+          baseSpeed * math.max(1, math.min(_combo, comboCap)) * seconds;
       for (final object in _objects) {
         object.y += speed;
-        if (!object.resolved && object.y >= 0.73) {
+        // The player is drawn near the bottom of the track, and with the
+        // new perspective that is about 0.88 down rather than 0.73.
+        if (!object.resolved && object.y >= 0.88) {
           object.resolved = true;
           if (object.lane == _lane) {
             if (object.spark) {
@@ -111,12 +168,17 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
               final points = math.min(_combo * 10, 50);
               _score += points;
               object.collected = true;
+              _collect = 1;
               _showFlash('+$points');
             } else if (!_jumping) {
+              // Losing a long run should feel like losing something, not like
+              // a flat ten point fee.
+              final lostRun = _combo >= 4 ? _combo : 0;
               _combo = 0;
               _score = math.max(0, _score - 10);
               _shake = 1;
-              _showFlash('-10');
+              _ripple(object.lane, _TrackPainter.interference);
+              _showFlash(lostRun > 0 ? 'combo x$lostRun lost' : '-10');
               if (_mode != GameMode.calm && _mode != GameMode.reducedMotion) {
                 unawaited(HapticFeedback.mediumImpact());
               }
@@ -129,12 +191,127 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
         }
       }
       if (_shake > 0) {
-        _shake = math.max(0, _shake - 0.12);
+        _shake = math.max(0, _shake - 2.4 * seconds);
       }
+      if (_collect > 0) {
+        _collect = math.max(0, _collect - 2.6 * seconds);
+      }
+      if (_lean != 0) {
+        final decay = 2.8 * seconds;
+        _lean = _lean > 0
+            ? math.max(0, _lean - decay)
+            : math.min(0, _lean + decay);
+      }
+      // The lane markers move at the same speed as the objects, which is what
+      // makes the character look like it is running rather than standing.
+      _scroll = (_scroll + speed * 2.2) % 1.0;
       // A collected spark disappears straight away; a cleared block fades on.
       _objects.removeWhere((object) => object.y > 1.08 || object.collected);
     });
     if (_elapsed >= target) _complete(completed: true);
+  }
+
+  /// The best score from every session before this one. The app has always
+  /// stored these and never shown them, and a number to beat is the cheapest
+  /// reason to come back.
+  int get _previousBest {
+    final sessions =
+        ref.read(gameSessionsProvider).value ?? const <GameSession>[];
+    var best = 0;
+    for (final session in sessions) {
+      if (session.id == _result?.sessionId) continue;
+      if (session.score > best) best = session.score;
+    }
+    return best;
+  }
+
+  /// Drops the next row of a wave, building a new wave when the current one
+  /// runs out. Rows can be empty, which is the breathing space between waves.
+  void _spawnRow(double progress) {
+    if (_pendingRows.isEmpty) _pendingRows.addAll(_buildWave(progress));
+    final row = _pendingRows.removeAt(0);
+    for (final cell in row) {
+      _objects.add(_TrackObject(lane: cell.lane, y: -0.08, spark: cell.spark));
+    }
+  }
+
+  List<List<_Cell>> _buildWave(double progress) {
+    const gap = <_Cell>[];
+    List<_Cell> sparks(List<int> lanes) =>
+        lanes.map((lane) => _Cell(lane, true)).toList();
+    List<_Cell> blocks(List<int> lanes) =>
+        lanes.map((lane) => _Cell(lane, false)).toList();
+    final lane = _random.nextInt(3);
+    final other = (lane + 1 + _random.nextInt(2)) % 3;
+
+    // A run of sparks in one lane: the simple reward, and what the combo is
+    // built on.
+    final run = <List<_Cell>>[
+      sparks(<int>[lane]),
+      sparks(<int>[lane]),
+      sparks(<int>[lane]),
+    ];
+    // Sparks walking across the lanes, so you are moving the whole time.
+    final zigzag = <List<_Cell>>[
+      sparks(<int>[0]),
+      sparks(<int>[1]),
+      sparks(<int>[2]),
+      sparks(<int>[1]),
+    ];
+    // Two blocks with one way through, then a spark waiting in that gap.
+    final gateLane = _random.nextInt(3);
+    final gate = <List<_Cell>>[
+      blocks(<int>[0, 1, 2]..remove(gateLane)),
+      gap,
+      sparks(<int>[gateLane]),
+    ];
+    // Two sparks at once: you can only have one, so you have to choose.
+    final choice = <List<_Cell>>[
+      sparks(<int>[lane, other]),
+      gap,
+      sparks(<int>[other]),
+    ];
+    // Every lane blocked. The only answer is to jump, which is the whole
+    // reason the jump exists.
+    final wall = <List<_Cell>>[
+      sparks(<int>[lane]),
+      blocks(<int>[0, 1, 2]),
+      gap,
+      sparks(<int>[lane]),
+    ];
+    // A block beside a spark: take the point or play it safe.
+    final pressure = <List<_Cell>>[
+      <_Cell>[_Cell(lane, true), _Cell(other, false)],
+      gap,
+      sparks(<int>[lane]),
+    ];
+
+    // Blocks every other lane, with a spark in the one way through.
+    final slalom = <List<_Cell>>[
+      blocks(<int>[0, 2]),
+      sparks(<int>[1]),
+      blocks(<int>[1]),
+      sparks(<int>[lane == 1 ? 0 : lane]),
+    ];
+
+    final calm = _mode == GameMode.calm;
+    final harder = progress > 0.12 && !calm;
+    // Listing a wave more than once makes it more likely. Roughly two in three
+    // waves should contain something to dodge, otherwise the jump, the combo
+    // risk and the whole point of the blocks never come up.
+    final waves = <List<List<_Cell>>>[
+      run,
+      zigzag,
+      choice,
+      if (!calm) ...<List<List<_Cell>>>[gate, gate, pressure, pressure],
+      if (calm) gate,
+      if (harder) ...<List<List<_Cell>>>[wall, slalom, slalom],
+    ];
+    return <List<_Cell>>[
+      ...waves[_random.nextInt(waves.length)],
+      gap,
+      if (calm || progress < 0.3) gap,
+    ];
   }
 
   void _onDragUpdate(DragUpdateDetails details) {
@@ -156,7 +333,16 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
 
   void _move(int direction) {
     if (!_started || _paused || _finished) return;
-    setState(() => _lane = (_lane + direction).clamp(0, 2));
+    setState(() {
+      final next = (_lane + direction).clamp(0, 2);
+      if (next != _lane) {
+        _lean = direction.toDouble();
+        // Every shift disturbs the field, in the colour of the stream moved
+        // into. This is the game's signature, not decoration.
+        _ripple(next, _TrackPainter.streamColour(next));
+      }
+      _lane = next;
+    });
   }
 
   void _jump() {
@@ -167,9 +353,27 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
     });
   }
 
+  /// What the mascot is doing, in priority order: in the air, recovering from
+  /// a hit, celebrating a spark, leaning into a lane change, otherwise running.
+  MascotPose get _mascotPose {
+    if (_jumping) return MascotPose.jump;
+    if (_shake > 0.05) return MascotPose.hit;
+    if (_collect > 0) return MascotPose.collect;
+    if (_lean.abs() > 0.15) return MascotPose.laneChange;
+    return MascotPose.run;
+  }
+
+  /// The hit and collect reactions play once, so their phase runs from 0 to 1
+  /// as the reaction decays rather than looping.
+  double get _mascotPhase => switch (_mascotPose) {
+    MascotPose.hit => (1 - _shake).clamp(0.0, 1.0),
+    MascotPose.collect => (1 - _collect).clamp(0.0, 1.0),
+    _ => (_runTime * 1.1) % 1,
+  };
+
   Future<void> _complete({required bool completed}) async {
     if (_finished || _saving) return;
-    _timer?.cancel();
+    _ticker?.stop();
     setState(() {
       _finished = true;
       _paused = false;
@@ -278,9 +482,20 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
-                  'How it works',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        'How it works',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    if (_previousBest > 0)
+                      Text(
+                        'Best $_previousBest',
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 const _RuleRow(
@@ -292,6 +507,11 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
                   icon: Icons.bolt_rounded,
                   text: 'Each spark in a row is worth more',
                   value: 'up to +50',
+                ),
+                const _RuleRow(
+                  icon: Icons.speed_rounded,
+                  text: 'Your run sets the speed',
+                  value: 'up to 3x',
                 ),
                 const _RuleRow(
                   icon: Icons.arrow_upward_rounded,
@@ -391,20 +611,91 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
     );
   }
 
+  /// Rings left behind by shifts and hits, trimmed as they fade.
+  final List<_Ripple> _ripples = <_Ripple>[];
+
+  void _ripple(int lane, Color colour) {
+    _ripples
+      ..removeWhere((ripple) => _runTime - ripple.born > 1.1)
+      ..add(_Ripple(lane, _runTime, colour));
+  }
+
   Widget _buildGame(BuildContext context, AvatarProfileData avatar) {
     final totalSeconds = _durationMinutes * 60;
     final remaining = math.max(0, totalSeconds - _elapsed.inSeconds);
     return Column(
       children: <Widget>[
+        // One ring that empties, one meter that fills, and a combo that only
+        // appears while it is worth something. Three floating counters are the
+        // clearest sign of a runner, so they are gone.
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 6),
           child: Row(
             children: <Widget>[
-              _GameMetric(label: 'TIME', value: _clock(remaining)),
-              const Spacer(),
-              _GameMetric(label: 'SPARKS', value: '$_score'),
-              const Spacer(),
-              _GameMetric(label: 'COMBO', value: 'x$_combo'),
+              SizedBox(
+                height: 34,
+                width: 34,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: <Widget>[
+                    CircularProgressIndicator(
+                      value: totalSeconds == 0 ? 0 : remaining / totalSeconds,
+                      strokeWidth: 3,
+                      strokeCap: StrokeCap.round,
+                      backgroundColor: Colors.white.withValues(alpha: 0.14),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Color(0xFFB9ACDF),
+                      ),
+                    ),
+                    Text(
+                      _clock(remaining),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      '$_score',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: (_combo / 8).clamp(0.0, 1.0),
+                        minHeight: 7,
+                        backgroundColor: Colors.white.withValues(alpha: 0.12),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFFFFD86B),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (_combo > 1)
+                Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: Text(
+                    'x$_combo',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF5FE0C0),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -435,6 +726,7 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
               onPanUpdate: _onDragUpdate,
               onPanEnd: (_) => _dragStart = null,
               onTapUp: (details) {
+                _focusNode.requestFocus();
                 if (!_started || _paused || _finished) return;
                 final width = context.size?.width ?? 0;
                 if (width == 0) return;
@@ -450,7 +742,7 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final laneWidth = constraints.maxWidth / 3;
-                  final playerLeft = laneWidth * _lane + laneWidth / 2 - 42;
+                  final playerLeft = laneWidth * _lane + laneWidth / 2 - 48;
                   final shakeAllowed =
                       _mode != GameMode.calm && _mode != GameMode.reducedMotion;
                   return Stack(
@@ -458,13 +750,21 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
                       Positioned.fill(
                         child: Transform.translate(
                           offset: shakeAllowed
-                              ? Offset(math.sin(_tick * 1.7) * _shake * 9, 0)
+                              ? Offset(math.sin(_runTime * 34) * _shake * 9, 0)
                               : Offset.zero,
                           child: CustomPaint(
                             painter: _TrackPainter(
+                              rich: _fps > 42 && _mode == GameMode.standard,
+                              clock: _runTime,
+                              ripples: _ripples,
                               objects: _objects,
                               calm: _mode == GameMode.calm,
                               highContrast: avatar.preferences.highContrast,
+                              scroll: _mode == GameMode.reducedMotion
+                                  ? 0
+                                  : _scroll,
+                              playerLane: _lane,
+                              jumping: _jumping,
                             ),
                           ),
                         ),
@@ -496,11 +796,14 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
                         curve: Curves.easeOut,
                         left: playerLeft,
                         bottom: _jumping ? 100 : 24,
-                        child: AvatarCharacter(
+                        child: MascotCharacter(
                           equipped: avatar.equipped,
-                          size: 84,
-                          running: _mode != GameMode.reducedMotion,
-                          phase: (_tick % 20) / 20,
+                          size: 96,
+                          pose: _mascotPose,
+                          phase: _mascotPhase,
+                          lean: _mode == GameMode.reducedMotion ? 0 : _lean,
+                          reducedMotion: _mode == GameMode.reducedMotion,
+                          highContrast: avatar.preferences.highContrast,
                         ),
                       ),
                       if (_paused)
@@ -509,8 +812,12 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
                             color: Colors.black54,
                             child: Center(
                               child: FilledButton.icon(
-                                onPressed: () =>
-                                    setState(() => _paused = false),
+                                onPressed: () {
+                                  setState(() => _paused = false);
+                                  // Resume takes focus with it, so hand the
+                                  // keys back to the game.
+                                  _focusNode.requestFocus();
+                                },
                                 icon: const Icon(Icons.play_arrow_rounded),
                                 label: const Text('Resume'),
                               ),
@@ -569,7 +876,7 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Center(
-              child: AvatarCharacter(equipped: avatar.equipped, size: 145),
+              child: MascotCharacter(equipped: avatar.equipped, size: 145),
             ),
             Text(
               'Notice what changed',
@@ -629,7 +936,7 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: <Widget>[
-            AvatarCharacter(equipped: avatar.equipped, size: 155),
+            MascotCharacter(equipped: avatar.equipped, size: 155),
             const SizedBox(height: 14),
             Text(
               _result?.completed == true ? 'Shift complete' : 'Session ended',
@@ -637,6 +944,21 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen> {
             ),
             const SizedBox(height: 10),
             Text('Score $_score  •  Best combo x$_bestCombo'),
+            const SizedBox(height: 6),
+            Builder(
+              builder: (context) {
+                final best = _previousBest;
+                if (best == 0) {
+                  return const Text(
+                    'This is your first run. That is the score to beat.',
+                  );
+                }
+                if (_score > best) {
+                  return Text('New best. Your last best was $best.');
+                }
+                return Text('Your best so far is $best.');
+              },
+            ),
             const SizedBox(height: 8),
             if (_saving)
               const CircularProgressIndicator()
@@ -722,20 +1044,10 @@ class _RuleRow extends StatelessWidget {
   }
 }
 
-class _GameMetric extends StatelessWidget {
-  const _GameMetric({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: <Widget>[
-        Text(label, style: Theme.of(context).textTheme.labelSmall),
-        Text(value, style: Theme.of(context).textTheme.titleLarge),
-      ],
-    );
-  }
+class _Cell {
+  const _Cell(this.lane, this.spark);
+  final int lane;
+  final bool spark;
 }
 
 class _TrackObject {
@@ -748,89 +1060,320 @@ class _TrackObject {
   bool resolved = false;
 }
 
+/// A ring thrown out when the signal shifts. The game's signature: every
+/// change disturbs the field it leaves behind.
+class _Ripple {
+  _Ripple(this.lane, this.born, this.colour);
+
+  final int lane;
+  final double born;
+  final Color colour;
+}
+
+/// The world: three streams of signal, not a road.
+///
+/// There is no horizon and no perspective. Each stream is a ribbon that
+/// wanders as it travels, and the wander fades to nothing at the bottom of
+/// the screen so that objects, collisions and the character all still line up
+/// on the same three lane centres the rest of the game counts in.
+///
+/// Nothing here uses a blur filter and no shader is built per frame. Those two
+/// are what made the old perspective track crawl on a software renderer; the
+/// soft edges are stacked translucent strokes instead.
 class _TrackPainter extends CustomPainter {
   const _TrackPainter({
+    required this.rich,
     required this.objects,
     required this.calm,
     required this.highContrast,
+    required this.scroll,
+    required this.playerLane,
+    required this.jumping,
+    required this.clock,
+    required this.ripples,
   });
+
+  /// Whether this device can afford the aura.
+  final bool rich;
   final List<_TrackObject> objects;
   final bool calm;
   final bool highContrast;
 
+  /// How far the field has travelled, 0 to 1 of one spacing.
+  final double scroll;
+  final int playerLane;
+  final bool jumping;
+  final double clock;
+  final List<_Ripple> ripples;
+
+  static const _spark = Color(0xFFFFD86B);
+  static const _interference = Color(0xFFF2708A);
+
+  /// Each stream carries its own colour, so a shift is a change of light and
+  /// not just a sideways step.
+  static const _streams = <Color>[
+    Color(0xFF7FB4F5),
+    Color(0xFFA78BFA),
+    Color(0xFF5FE0C0),
+  ];
+
+  static Color streamColour(int lane) => _streams[lane % _streams.length];
+
+  /// The colour a hit leaves behind.
+  static const interference = _interference;
+
+  static Size? _cachedSize;
+  static bool? _cachedCalm;
+  static Shader? _skyShader;
+
+  double _laneCentre(int lane, double y, Size size) {
+    final laneWidth = size.width / 3;
+    final base = laneWidth * lane + laneWidth / 2;
+    if (calm) return base;
+    // The wander dies away at the bottom, where the character stands.
+    final left = 1 - y.clamp(0.0, 1.0);
+    final settle = left * left;
+    final wander =
+        math.sin(y * 2.4 + clock * 0.75 + lane * 2.1) * size.width * 0.05;
+    return base + wander * settle;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
-    final background = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: calm
-            ? const <Color>[Color(0xFFE8E3F4), Color(0xFFF8F1E9)]
-            : const <Color>[Color(0xFF31204B), Color(0xFF7658A7)],
-      ).createShader(Offset.zero & size);
-    canvas.drawRect(Offset.zero & size, background);
-    final line = Paint()
-      ..color = (calm ? const Color(0xFF7557A8) : Colors.white).withValues(
-        alpha: highContrast ? 0.8 : 0.35,
-      )
-      ..strokeWidth = highContrast ? 4 : 2;
-    canvas.drawLine(
-      Offset(size.width / 3, 0),
-      Offset(size.width / 3, size.height),
-      line,
-    );
-    canvas.drawLine(
-      Offset(size.width * 2 / 3, 0),
-      Offset(size.width * 2 / 3, size.height),
-      line,
-    );
-    final laneWidth = size.width / 3;
-    for (final object in objects) {
-      final center = Offset(
-        laneWidth * object.lane + laneWidth / 2,
-        object.y * size.height,
+    if (_cachedSize != size || _cachedCalm != calm) {
+      _cachedSize = size;
+      _cachedCalm = calm;
+      _skyShader = ui.Gradient.linear(
+        Offset(0, 0),
+        Offset(0, size.height),
+        calm
+            ? const <Color>[
+                Color(0xFFF6EFFA),
+                Color(0xFFEFE6F6),
+                Color(0xFFF8F1E9),
+              ]
+            : const <Color>[
+                Color(0xFF140D26),
+                Color(0xFF241A42),
+                Color(0xFF140D26),
+              ],
+        const <double>[0, 0.62, 1],
       );
-      if (object.spark) {
-        final glow = Paint()
-          ..color = const Color(0xFFFFD86B).withValues(alpha: 0.25);
-        canvas.drawCircle(center, 21, glow);
-        _drawSpark(canvas, center, const Color(0xFFFFD86B));
-      } else {
-        final rect = RRect.fromRectAndRadius(
-          Rect.fromCenter(center: center, width: 46, height: 34),
-          const Radius.circular(9),
-        );
-        canvas.drawRRect(rect, Paint()..color = const Color(0xFFFF806D));
-        canvas.drawRRect(
-          rect,
-          Paint()
-            ..color = const Color(0xFF32233D)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3,
-        );
-      }
+    }
+    canvas.drawRect(Offset.zero & size, Paint()..shader = _skyShader);
+
+    for (var lane = 0; lane < 3; lane++) {
+      _paintStream(canvas, size, lane);
+    }
+    for (final ripple in ripples) {
+      _paintRipple(canvas, size, ripple);
+    }
+    for (final object in objects) {
+      _paintObject(canvas, size, object);
     }
   }
 
-  static void _drawSpark(Canvas canvas, Offset center, Color color) {
-    final path = Path();
-    for (var index = 0; index < 8; index++) {
-      final angle = -math.pi / 2 + index * math.pi / 4;
-      final radius = index.isEven ? 16.0 : 7.0;
-      final point = Offset(
-        center.dx + math.cos(angle) * radius,
-        center.dy + math.sin(angle) * radius,
-      );
-      if (index == 0) {
-        path.moveTo(point.dx, point.dy);
+  void _paintStream(Canvas canvas, Size size, int lane) {
+    final colour = calm
+        ? Color.lerp(_streams[lane], Colors.white, 0.35)!
+        : _streams[lane];
+    final lit = lane == playerLane;
+    final width = size.width * (lit ? 0.2 : 0.17);
+
+    final core = Path();
+    const steps = 20;
+    for (var i = 0; i <= steps; i++) {
+      final y = i / steps;
+      final x = _laneCentre(lane, y, size);
+      if (i == 0) {
+        core.moveTo(x, y * size.height);
       } else {
-        path.lineTo(point.dx, point.dy);
+        core.lineTo(x, y * size.height);
       }
     }
-    path.close();
-    canvas.drawPath(path, Paint()..color = color);
+
+    // The aura: one stroke per halo ring, widest and faintest first. This is
+    // what a blur would give for free on a GPU and what it costs the earth to
+    // ask for here. Calm mode does without it.
+    // Only the stream being played gets an aura, and only when the frame rate
+    // can pay for it. Each ring is a stroke half the screen wide down the full
+    // height, so three lanes of them was most of a frame's work.
+    if (rich && lit) {
+      const rings = <double>[1.9, 1.4];
+      for (var i = 0; i < rings.length; i++) {
+        canvas.drawPath(
+          core,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeJoin = StrokeJoin.round
+            ..strokeWidth = width * rings[i]
+            ..color = colour.withValues(alpha: 0.05 * (i + 1)),
+        );
+      }
+    }
+
+    canvas.drawPath(
+      core,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeJoin = StrokeJoin.round
+        ..strokeWidth = width
+        ..color = colour.withValues(alpha: lit ? 0.3 : 0.15),
+    );
+    canvas.drawPath(
+      core,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeJoin = StrokeJoin.round
+        ..strokeWidth = width * 0.42
+        ..color = colour.withValues(alpha: lit ? 0.5 : 0.24),
+    );
+    canvas.drawPath(
+      core,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = lit ? 4 : 2
+        ..color = Color.lerp(
+          colour,
+          highContrast ? Colors.white : Colors.white,
+          lit ? 0.5 : 0.25,
+        )!.withValues(alpha: lit ? 0.95 : 0.5),
+    );
+
+    // Light travelling down the stream carries the movement the vanishing
+    // point used to provide.
+    const gap = 0.16;
+    final drift = (scroll * gap) % gap;
+    for (var n = 0; n < 8; n++) {
+      final y = n * gap + drift;
+      if (y > 1) continue;
+      final x = _laneCentre(lane, y, size);
+      final glide = 1 - (y - 0.5).abs() * 0.6;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: Offset(x, y * size.height),
+            width: width * 0.44 * glide,
+            height: 7,
+          ),
+          const Radius.circular(4),
+        ),
+        Paint()
+          ..color = (calm ? colour : Colors.white).withValues(
+            alpha: lit ? 0.5 : 0.2,
+          ),
+      );
+    }
+  }
+
+  void _paintRipple(Canvas canvas, Size size, _Ripple ripple) {
+    final age = ((clock - ripple.born) / 1.1).clamp(0.0, 1.0);
+    if (age >= 1) return;
+    final fade = (1 - age) * (1 - age);
+    final at = Offset(_laneCentre(ripple.lane, 0.86, size), size.height * 0.86);
+    for (var ring = 0; ring < 2; ring++) {
+      final reach = size.width * (0.1 + age * (0.55 + ring * 0.12));
+      canvas.drawOval(
+        Rect.fromCenter(center: at, width: reach * 2, height: reach * 0.75),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = (2.6 - ring).clamp(1.0, 3.0)
+          ..color = ripple.colour.withValues(alpha: fade * (0.55 - ring * 0.2)),
+      );
+    }
+  }
+
+  void _paintObject(Canvas canvas, Size size, _TrackObject object) {
+    final at = Offset(
+      _laneCentre(object.lane, object.y, size),
+      object.y * size.height,
+    );
+    if (object.spark) {
+      if (object.collected) {
+        // A collected spark opens out rather than vanishing.
+        final age = ((object.y - 0.88).abs() / 0.2).clamp(0.0, 1.0);
+        canvas.drawCircle(
+          at,
+          18 + age * 32,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3
+            ..color = _spark.withValues(alpha: (1 - age) * 0.85),
+        );
+        return;
+      }
+      _paintSpark(canvas, at);
+      return;
+    }
+    if (object.cleared) return;
+    _paintInterference(canvas, at, object.lane);
+  }
+
+  /// A four point star with a halo, breathing in time with the field.
+  void _paintSpark(Canvas canvas, Offset at) {
+    final beat = calm ? 1.0 : 1 + math.sin(clock * 3.4 + at.dy * 0.02) * 0.09;
+    final radius = 18.0 * beat;
+    for (var halo = 3; halo >= 1; halo--) {
+      canvas.drawCircle(
+        at,
+        radius * (0.9 + halo * 0.3),
+        Paint()..color = _spark.withValues(alpha: 0.05 * (4 - halo)),
+      );
+    }
+    final path = Path();
+    for (var i = 0; i < 4; i++) {
+      final angle = i * math.pi / 2;
+      final tip = Offset(
+        at.dx + math.cos(angle) * radius,
+        at.dy + math.sin(angle) * radius,
+      );
+      final left = Offset(
+        at.dx + math.cos(angle - math.pi / 4) * radius * 0.3,
+        at.dy + math.sin(angle - math.pi / 4) * radius * 0.3,
+      );
+      final right = Offset(
+        at.dx + math.cos(angle + math.pi / 4) * radius * 0.3,
+        at.dy + math.sin(angle + math.pi / 4) * radius * 0.3,
+      );
+      path
+        ..moveTo(at.dx, at.dy)
+        ..quadraticBezierTo(left.dx, left.dy, tip.dx, tip.dy)
+        ..quadraticBezierTo(right.dx, right.dy, at.dx, at.dy);
+    }
+    canvas.drawPath(path, Paint()..color = _spark);
+    canvas.drawCircle(at, radius * 0.28, Paint()..color = Colors.white);
+  }
+
+  /// Interference: a clump that will not hold still. Overlapping discs rather
+  /// than a blur, which is what a soft edge costs on a device with no GPU to
+  /// spare.
+  void _paintInterference(Canvas canvas, Offset at, int lane) {
+    final colour = highContrast
+        ? Color.lerp(_interference, Colors.white, 0.25)!
+        : _interference;
+    for (var halo = 3; halo >= 1; halo--) {
+      canvas.drawCircle(
+        at,
+        14.0 + halo * 8,
+        Paint()..color = colour.withValues(alpha: 0.075 * (4 - halo)),
+      );
+    }
+    final jitter = calm ? 0.0 : clock * 1.9;
+    for (var i = 0; i < 8; i++) {
+      final angle = (lane * 31 + i * 47) % 360 * math.pi / 180 + jitter;
+      final reach = 9 + (i % 3) * 6.0;
+      canvas.drawCircle(
+        Offset(
+          at.dx + math.cos(angle) * reach,
+          at.dy + math.sin(angle) * reach,
+        ),
+        7.5 - (i % 3) * 1.2,
+        Paint()..color = colour.withValues(alpha: 0.9),
+      );
+    }
   }
 
   @override
-  bool shouldRepaint(covariant _TrackPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _TrackPainter old) => true;
 }

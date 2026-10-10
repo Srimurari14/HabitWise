@@ -1,184 +1,306 @@
 {
-  "version": 1,
+  "version": 3,
   "items": [
     {
-      "id": "skin_porcelain",
-      "name": "Porcelain",
+      "id": "body_blossom",
+      "name": "Blossom",
       "slot": "baseColor",
       "rarity": "starter",
       "price": 0,
-      "style": "porcelain",
+      "style": "blossom",
       "starter": true
     },
     {
-      "id": "skin_sand",
-      "name": "Sand",
+      "id": "body_mint",
+      "name": "Mint",
       "slot": "baseColor",
       "rarity": "starter",
       "price": 0,
-      "style": "sand",
+      "style": "mint",
       "starter": true
     },
     {
-      "id": "skin_honey",
-      "name": "Honey",
+      "id": "body_sky",
+      "name": "Sky",
       "slot": "baseColor",
       "rarity": "starter",
       "price": 0,
-      "style": "honey",
+      "style": "sky",
       "starter": true
     },
     {
-      "id": "skin_bronze",
-      "name": "Bronze",
+      "id": "body_violet",
+      "name": "Violet",
       "slot": "baseColor",
       "rarity": "starter",
       "price": 0,
-      "style": "bronze",
+      "style": "violet",
       "starter": true
     },
     {
-      "id": "skin_espresso",
-      "name": "Espresso",
+      "id": "body_cloud",
+      "name": "Cloud",
       "slot": "baseColor",
       "rarity": "starter",
-      "price": 0,
-      "style": "espresso",
-      "starter": true
-    },
-    {
-      "id": "eyes_kind",
-      "name": "Kind Eyes",
-      "slot": "eyes",
-      "rarity": "starter",
-      "price": 0,
-      "style": "kind",
-      "starter": true
-    },
-    {
-      "id": "eyes_star",
-      "name": "Star Eyes",
-      "slot": "eyes",
-      "rarity": "bright",
-      "price": 75,
-      "style": "star"
-    },
-    {
-      "id": "expression_ready",
-      "name": "Ready Smile",
-      "slot": "expression",
-      "rarity": "starter",
-      "price": 0,
-      "style": "smile",
-      "starter": true
-    },
-    {
-      "id": "expression_focus",
-      "name": "Focus Face",
-      "slot": "expression",
-      "rarity": "common",
-      "price": 25,
-      "style": "focus"
-    },
-    {
-      "id": "top_cream",
-      "name": "Cream Hoodie",
-      "slot": "top",
-      "rarity": "starter",
-      "price": 0,
-      "style": "cream",
-      "starter": true
-    },
-    {
-      "id": "top_coral",
-      "name": "Coral Flight Jacket",
-      "slot": "top",
-      "rarity": "bright",
-      "price": 120,
-      "style": "coral"
-    },
-    {
-      "id": "bottom_night",
-      "name": "Night Joggers",
-      "slot": "bottom",
-      "rarity": "common",
-      "price": 50,
-      "style": "night"
-    },
-    {
-      "id": "shoes_cloud",
-      "name": "Cloud Runners",
-      "slot": "shoes",
-      "rarity": "starter",
-      "price": 0,
+      "price": 12,
       "style": "cloud",
+      "starter": false
+    },
+    {
+      "id": "body_ember",
+      "name": "Ember",
+      "slot": "baseColor",
+      "rarity": "starter",
+      "price": 12,
+      "style": "ember",
+      "starter": false
+    },
+    {
+      "id": "body_ink",
+      "name": "Ink",
+      "slot": "baseColor",
+      "rarity": "starter",
+      "price": 12,
+      "style": "ink",
+      "starter": false
+    },
+    {
+      "id": "body_sun",
+      "name": "Sun",
+      "slot": "baseColor",
+      "rarity": "starter",
+      "price": 12,
+      "style": "sun",
+      "starter": false
+    },
+    {
+      "id": "face_excited",
+      "name": "Excited",
+      "slot": "expression",
+      "rarity": "starter",
+      "price": 0,
+      "style": "excited",
       "starter": true
     },
     {
-      "id": "shoes_spark",
-      "name": "Spark Sneakers",
-      "slot": "shoes",
-      "rarity": "bright",
-      "price": 75,
-      "style": "spark"
+      "id": "face_happy",
+      "name": "Happy",
+      "slot": "expression",
+      "rarity": "starter",
+      "price": 0,
+      "style": "happy",
+      "starter": true
     },
     {
-      "id": "scarf_lavender",
-      "name": "Lavender Scarf",
-      "slot": "scarf",
-      "rarity": "common",
-      "price": 50,
-      "style": "lavender"
+      "id": "face_focused",
+      "name": "Focused",
+      "slot": "expression",
+      "rarity": "starter",
+      "price": 8,
+      "style": "focused",
+      "starter": false
     },
     {
-      "id": "glasses_round",
-      "name": "Orbit Glasses",
-      "slot": "glasses",
-      "rarity": "common",
-      "price": 50,
-      "style": "round"
+      "id": "face_sad",
+      "name": "Sad",
+      "slot": "expression",
+      "rarity": "starter",
+      "price": 8,
+      "style": "sad",
+      "starter": false
+    },
+    {
+      "id": "face_surprised",
+      "name": "Surprised",
+      "slot": "expression",
+      "rarity": "starter",
+      "price": 8,
+      "style": "surprised",
+      "starter": false
     },
     {
       "id": "hat_beanie",
-      "name": "Focus Beanie",
+      "name": "Red Beanie",
       "slot": "hat",
-      "rarity": "bright",
-      "price": 75,
-      "style": "beanie"
+      "rarity": "common",
+      "price": 60,
+      "style": "hat_beanie",
+      "starter": false
     },
     {
-      "id": "back_wings",
-      "name": "Signal Wings",
-      "slot": "back",
+      "id": "hat_bucket",
+      "name": "Bucket hat",
+      "slot": "hat",
+      "rarity": "common",
+      "price": 60,
+      "style": "bucket"
+    },
+    {
+      "id": "hat_cap",
+      "name": "Yellow Cap",
+      "slot": "hat",
+      "rarity": "common",
+      "price": 60,
+      "style": "hat_cap",
+      "starter": false
+    },
+    {
+      "id": "hat_headphones",
+      "name": "Headphones",
+      "slot": "hat",
+      "rarity": "bright",
+      "price": 90,
+      "style": "hat_headphones",
+      "starter": false
+    },
+    {
+      "id": "hat_party",
+      "name": "Party hat",
+      "slot": "hat",
+      "rarity": "bright",
+      "price": 90,
+      "style": "party"
+    },
+    {
+      "id": "hat_cosy_knit",
+      "name": "Cosy knit hat",
+      "slot": "hat",
       "rarity": "milestone",
       "price": 0,
-      "style": "wings",
+      "style": "cosy",
       "milestone": 7
     },
     {
-      "id": "trail_comet",
-      "name": "Comet Trail",
-      "slot": "trail",
-      "rarity": "bright",
-      "price": 120,
-      "style": "comet"
-    },
-    {
-      "id": "celebration_confetti",
-      "name": "Gentle Confetti",
-      "slot": "celebration",
+      "id": "hat_aurora_circlet",
+      "name": "Aurora circlet",
+      "slot": "hat",
       "rarity": "milestone",
       "price": 0,
-      "style": "confetti",
+      "style": "aurora",
       "milestone": 14
     },
     {
-      "id": "background_dawn",
-      "name": "Dawn Circuit",
-      "slot": "background",
+      "id": "glasses_round",
+      "name": "Round Glasses",
+      "slot": "glasses",
+      "rarity": "common",
+      "price": 50,
+      "style": "glasses_round",
+      "starter": false
+    },
+    {
+      "id": "glasses_sun",
+      "name": "Sunglasses",
+      "slot": "glasses",
+      "rarity": "common",
+      "price": 50,
+      "style": "glasses_sun",
+      "starter": false
+    },
+    {
+      "id": "scarf_navy",
+      "name": "Navy scarf",
+      "slot": "scarf",
+      "rarity": "common",
+      "price": 50,
+      "style": "navy"
+    },
+    {
+      "id": "scarf_red",
+      "name": "Red Scarf",
+      "slot": "scarf",
+      "rarity": "common",
+      "price": 50,
+      "style": "scarf_red",
+      "starter": false
+    },
+    {
+      "id": "scarf_aurora_collar",
+      "name": "Aurora collar",
+      "slot": "scarf",
+      "rarity": "milestone",
+      "price": 0,
+      "style": "aurora",
+      "milestone": 14
+    },
+    {
+      "id": "outfit_hoodie_blue",
+      "name": "Blue hoodie",
+      "slot": "top",
       "rarity": "common",
       "price": 75,
-      "style": "dawn"
+      "style": "hoodie_blue"
+    },
+    {
+      "id": "outfit_cosy_sweater",
+      "name": "Cosy sweater",
+      "slot": "top",
+      "rarity": "milestone",
+      "price": 0,
+      "style": "cosy",
+      "milestone": 7
+    },
+    {
+      "id": "outfit_aurora_cloak",
+      "name": "Aurora cloak",
+      "slot": "top",
+      "rarity": "milestone",
+      "price": 0,
+      "style": "aurora",
+      "milestone": 14
+    },
+    {
+      "id": "outfit_urban_explorer",
+      "name": "Explorer outfit",
+      "slot": "top",
+      "rarity": "milestone",
+      "price": 0,
+      "style": "urban",
+      "milestone": 21
+    },
+    {
+      "id": "shoes_sneaker_red",
+      "name": "Red sneakers",
+      "slot": "shoes",
+      "rarity": "common",
+      "price": 50,
+      "style": "sneaker_red"
+    },
+    {
+      "id": "shoes_cosy_boots",
+      "name": "Cosy boots",
+      "slot": "shoes",
+      "rarity": "milestone",
+      "price": 0,
+      "style": "cosy",
+      "milestone": 7
+    },
+    {
+      "id": "shoes_aurora_boots",
+      "name": "Aurora boots",
+      "slot": "shoes",
+      "rarity": "milestone",
+      "price": 0,
+      "style": "aurora",
+      "milestone": 14
+    },
+    {
+      "id": "back_backpack",
+      "name": "Backpack",
+      "slot": "back",
+      "rarity": "bright",
+      "price": 80,
+      "style": "back_backpack",
+      "starter": false
+    },
+    {
+      "id": "back_cape",
+      "name": "Star Cape",
+      "slot": "back",
+      "rarity": "bright",
+      "price": 140,
+      "style": "back_cape",
+      "starter": false
     }
   ]
 }

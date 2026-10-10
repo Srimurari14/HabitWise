@@ -4603,6 +4603,16 @@ class $GameSessionsTable extends GameSessions
       'CHECK ("craving_returned" IN (0, 1))',
     ),
   );
+  static const VerificationMeta _gameMeta = const VerificationMeta('game');
+  @override
+  late final GeneratedColumn<String> game = GeneratedColumn<String>(
+    'game',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('signal_shift'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -4621,6 +4631,7 @@ class $GameSessionsTable extends GameSessions
     completed,
     helpfulness,
     cravingReturned,
+    game,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4768,6 +4779,12 @@ class $GameSessionsTable extends GameSessions
         ),
       );
     }
+    if (data.containsKey('game')) {
+      context.handle(
+        _gameMeta,
+        game.isAcceptableOrUnknown(data['game']!, _gameMeta),
+      );
+    }
     return context;
   }
 
@@ -4841,6 +4858,10 @@ class $GameSessionsTable extends GameSessions
         DriftSqlType.bool,
         data['${effectivePrefix}craving_returned'],
       ),
+      game: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}game'],
+      )!,
     );
   }
 
@@ -4867,6 +4888,10 @@ class GameSession extends DataClass implements Insertable<GameSession> {
   final bool completed;
   final String? helpfulness;
   final bool? cravingReturned;
+
+  /// Which game was played. Everything recorded before a second game existed
+  /// was Signal Shift, so this defaults rather than being nullable.
+  final String game;
   const GameSession({
     required this.id,
     required this.startedAt,
@@ -4884,6 +4909,7 @@ class GameSession extends DataClass implements Insertable<GameSession> {
     required this.completed,
     this.helpfulness,
     this.cravingReturned,
+    required this.game,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4918,6 +4944,7 @@ class GameSession extends DataClass implements Insertable<GameSession> {
     if (!nullToAbsent || cravingReturned != null) {
       map['craving_returned'] = Variable<bool>(cravingReturned);
     }
+    map['game'] = Variable<String>(game);
     return map;
   }
 
@@ -4953,6 +4980,7 @@ class GameSession extends DataClass implements Insertable<GameSession> {
       cravingReturned: cravingReturned == null && nullToAbsent
           ? const Value.absent()
           : Value(cravingReturned),
+      game: Value(game),
     );
   }
 
@@ -4978,6 +5006,7 @@ class GameSession extends DataClass implements Insertable<GameSession> {
       completed: serializer.fromJson<bool>(json['completed']),
       helpfulness: serializer.fromJson<String?>(json['helpfulness']),
       cravingReturned: serializer.fromJson<bool?>(json['cravingReturned']),
+      game: serializer.fromJson<String>(json['game']),
     );
   }
   @override
@@ -5000,6 +5029,7 @@ class GameSession extends DataClass implements Insertable<GameSession> {
       'completed': serializer.toJson<bool>(completed),
       'helpfulness': serializer.toJson<String?>(helpfulness),
       'cravingReturned': serializer.toJson<bool?>(cravingReturned),
+      'game': serializer.toJson<String>(game),
     };
   }
 
@@ -5020,6 +5050,7 @@ class GameSession extends DataClass implements Insertable<GameSession> {
     bool? completed,
     Value<String?> helpfulness = const Value.absent(),
     Value<bool?> cravingReturned = const Value.absent(),
+    String? game,
   }) => GameSession(
     id: id ?? this.id,
     startedAt: startedAt ?? this.startedAt,
@@ -5045,6 +5076,7 @@ class GameSession extends DataClass implements Insertable<GameSession> {
     cravingReturned: cravingReturned.present
         ? cravingReturned.value
         : this.cravingReturned,
+    game: game ?? this.game,
   );
   GameSession copyWithCompanion(GameSessionsCompanion data) {
     return GameSession(
@@ -5082,6 +5114,7 @@ class GameSession extends DataClass implements Insertable<GameSession> {
       cravingReturned: data.cravingReturned.present
           ? data.cravingReturned.value
           : this.cravingReturned,
+      game: data.game.present ? data.game.value : this.game,
     );
   }
 
@@ -5103,7 +5136,8 @@ class GameSession extends DataClass implements Insertable<GameSession> {
           ..write('coinsAwarded: $coinsAwarded, ')
           ..write('completed: $completed, ')
           ..write('helpfulness: $helpfulness, ')
-          ..write('cravingReturned: $cravingReturned')
+          ..write('cravingReturned: $cravingReturned, ')
+          ..write('game: $game')
           ..write(')'))
         .toString();
   }
@@ -5126,6 +5160,7 @@ class GameSession extends DataClass implements Insertable<GameSession> {
     completed,
     helpfulness,
     cravingReturned,
+    game,
   );
   @override
   bool operator ==(Object other) =>
@@ -5146,7 +5181,8 @@ class GameSession extends DataClass implements Insertable<GameSession> {
           other.coinsAwarded == this.coinsAwarded &&
           other.completed == this.completed &&
           other.helpfulness == this.helpfulness &&
-          other.cravingReturned == this.cravingReturned);
+          other.cravingReturned == this.cravingReturned &&
+          other.game == this.game);
 }
 
 class GameSessionsCompanion extends UpdateCompanion<GameSession> {
@@ -5166,6 +5202,7 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
   final Value<bool> completed;
   final Value<String?> helpfulness;
   final Value<bool?> cravingReturned;
+  final Value<String> game;
   final Value<int> rowid;
   const GameSessionsCompanion({
     this.id = const Value.absent(),
@@ -5184,6 +5221,7 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
     this.completed = const Value.absent(),
     this.helpfulness = const Value.absent(),
     this.cravingReturned = const Value.absent(),
+    this.game = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   GameSessionsCompanion.insert({
@@ -5203,6 +5241,7 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
     this.completed = const Value.absent(),
     this.helpfulness = const Value.absent(),
     this.cravingReturned = const Value.absent(),
+    this.game = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        startedAt = Value(startedAt),
@@ -5228,6 +5267,7 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
     Expression<bool>? completed,
     Expression<String>? helpfulness,
     Expression<bool>? cravingReturned,
+    Expression<String>? game,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -5247,6 +5287,7 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
       if (completed != null) 'completed': completed,
       if (helpfulness != null) 'helpfulness': helpfulness,
       if (cravingReturned != null) 'craving_returned': cravingReturned,
+      if (game != null) 'game': game,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -5268,6 +5309,7 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
     Value<bool>? completed,
     Value<String?>? helpfulness,
     Value<bool?>? cravingReturned,
+    Value<String>? game,
     Value<int>? rowid,
   }) {
     return GameSessionsCompanion(
@@ -5287,6 +5329,7 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
       completed: completed ?? this.completed,
       helpfulness: helpfulness ?? this.helpfulness,
       cravingReturned: cravingReturned ?? this.cravingReturned,
+      game: game ?? this.game,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5342,6 +5385,9 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
     if (cravingReturned.present) {
       map['craving_returned'] = Variable<bool>(cravingReturned.value);
     }
+    if (game.present) {
+      map['game'] = Variable<String>(game.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5367,6 +5413,7 @@ class GameSessionsCompanion extends UpdateCompanion<GameSession> {
           ..write('completed: $completed, ')
           ..write('helpfulness: $helpfulness, ')
           ..write('cravingReturned: $cravingReturned, ')
+          ..write('game: $game, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5546,7 +5593,16 @@ class $$UserProfilesTableTableManager
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$UserProfilesTable, UserProfile>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $UserProfilesTable,
+                    UserProfile
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -6015,7 +6071,16 @@ class $$CravingLogsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$CravingLogsTable, CravingLog>(table),
+                  BaseReferences<_$AppDatabase, $CravingLogsTable, CravingLog>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -6238,7 +6303,16 @@ class $$LearnedPriorsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$LearnedPriorsTable, LearnedPrior>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $LearnedPriorsTable,
+                    LearnedPrior
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -6432,7 +6506,16 @@ class $$InterventionStatsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$InterventionStatsTable, InterventionStat>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $InterventionStatsTable,
+                    InterventionStat
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -6626,7 +6709,16 @@ class $$ReflectionEntriesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$ReflectionEntriesTable, ReflectionEntry>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ReflectionEntriesTable,
+                    ReflectionEntry
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -6765,7 +6857,16 @@ class $$AppSettingsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$AppSettingsTable, AppSetting>(table),
+                  BaseReferences<_$AppDatabase, $AppSettingsTable, AppSetting>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -6923,7 +7024,16 @@ class $$AvatarProfilesTableTableManager
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$AvatarProfilesTable, AvatarProfile>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $AvatarProfilesTable,
+                    AvatarProfile
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -7089,7 +7199,16 @@ class $$OwnedCosmeticsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$OwnedCosmeticsTable, OwnedCosmetic>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $OwnedCosmeticsTable,
+                    OwnedCosmetic
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -7270,7 +7389,16 @@ class $$OutfitPresetsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$OutfitPresetsTable, OutfitPreset>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $OutfitPresetsTable,
+                    OutfitPreset
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -7493,7 +7621,16 @@ class $$CoinLedgerTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$CoinLedgerTable, CoinLedgerData>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $CoinLedgerTable,
+                    CoinLedgerData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -7695,7 +7832,16 @@ class $$StreakStatesTableTableManager
                 graceAvailable: graceAvailable,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$StreakStatesTable, StreakState>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $StreakStatesTable,
+                    StreakState
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -7848,7 +7994,16 @@ class $$MilestoneUnlocksTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$MilestoneUnlocksTable, MilestoneUnlock>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $MilestoneUnlocksTable,
+                    MilestoneUnlock
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -7890,6 +8045,7 @@ typedef $$GameSessionsTableCreateCompanionBuilder =
       Value<bool> completed,
       Value<String?> helpfulness,
       Value<bool?> cravingReturned,
+      Value<String> game,
       Value<int> rowid,
     });
 typedef $$GameSessionsTableUpdateCompanionBuilder =
@@ -7910,6 +8066,7 @@ typedef $$GameSessionsTableUpdateCompanionBuilder =
       Value<bool> completed,
       Value<String?> helpfulness,
       Value<bool?> cravingReturned,
+      Value<String> game,
       Value<int> rowid,
     });
 
@@ -7999,6 +8156,11 @@ class $$GameSessionsTableFilterComposer
 
   ColumnFilters<bool> get cravingReturned => $composableBuilder(
     column: $table.cravingReturned,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get game => $composableBuilder(
+    column: $table.game,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -8091,6 +8253,11 @@ class $$GameSessionsTableOrderingComposer
     column: $table.cravingReturned,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get game => $composableBuilder(
+    column: $table.game,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$GameSessionsTableAnnotationComposer
@@ -8167,6 +8334,9 @@ class $$GameSessionsTableAnnotationComposer
     column: $table.cravingReturned,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get game =>
+      $composableBuilder(column: $table.game, builder: (column) => column);
 }
 
 class $$GameSessionsTableTableManager
@@ -8216,6 +8386,7 @@ class $$GameSessionsTableTableManager
                 Value<bool> completed = const Value.absent(),
                 Value<String?> helpfulness = const Value.absent(),
                 Value<bool?> cravingReturned = const Value.absent(),
+                Value<String> game = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => GameSessionsCompanion(
                 id: id,
@@ -8234,6 +8405,7 @@ class $$GameSessionsTableTableManager
                 completed: completed,
                 helpfulness: helpfulness,
                 cravingReturned: cravingReturned,
+                game: game,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -8254,6 +8426,7 @@ class $$GameSessionsTableTableManager
                 Value<bool> completed = const Value.absent(),
                 Value<String?> helpfulness = const Value.absent(),
                 Value<bool?> cravingReturned = const Value.absent(),
+                Value<String> game = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => GameSessionsCompanion.insert(
                 id: id,
@@ -8272,10 +8445,20 @@ class $$GameSessionsTableTableManager
                 completed: completed,
                 helpfulness: helpfulness,
                 cravingReturned: cravingReturned,
+                game: game,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$GameSessionsTable, GameSession>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $GameSessionsTable,
+                    GameSession
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
