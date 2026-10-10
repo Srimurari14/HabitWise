@@ -34,6 +34,10 @@ class _MascotLabScreenState extends State<MascotLabScreen>
   };
 
   late final Ticker _ticker;
+
+  /// Pinch and drag the preview. Showing somebody how a collar sits needs a
+  /// closer look than a 220 pixel blob allows.
+  final _zoom = TransformationController();
   Duration _last = Duration.zero;
   double _clock = 0;
   double _fps = 0;
@@ -56,8 +60,11 @@ class _MascotLabScreenState extends State<MascotLabScreen>
     _ticker = createTicker(_onFrame)..start();
   }
 
+  double get _scale => _zoom.value.getMaxScaleOnAxis();
+
   @override
   void dispose() {
+    _zoom.dispose();
     _ticker.dispose();
     super.dispose();
   }
@@ -148,14 +155,29 @@ class _MascotLabScreenState extends State<MascotLabScreen>
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 child: Column(
                   children: <Widget>[
-                    MascotCharacter(
-                      equipped: equipped,
-                      size: 220,
-                      pose: _pose,
-                      phase: _phase,
-                      lean: _lean,
-                      reducedMotion: _reducedMotion,
-                      highContrast: _highContrast,
+                    SizedBox(
+                      height: 236,
+                      child: InteractiveViewer(
+                        transformationController: _zoom,
+                        minScale: 1,
+                        maxScale: 6,
+                        // Room to drag a zoomed blob around, rather than
+                        // clamping it to its own edges.
+                        boundaryMargin: const EdgeInsets.all(240),
+                        clipBehavior: Clip.hardEdge,
+                        onInteractionEnd: (_) => setState(() {}),
+                        child: Center(
+                          child: MascotCharacter(
+                            equipped: equipped,
+                            size: 220,
+                            pose: _pose,
+                            phase: _phase,
+                            lean: _lean,
+                            reducedMotion: _reducedMotion,
+                            highContrast: _highContrast,
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Row(
@@ -177,9 +199,20 @@ class _MascotLabScreenState extends State<MascotLabScreen>
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      '${_fps.round()} fps',
-                      style: const TextStyle(color: Colors.white70),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        Text(
+                          '${_fps.round()} fps   ${_scale.toStringAsFixed(1)}x',
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                        if (_scale > 1.01)
+                          TextButton(
+                            onPressed: () =>
+                                setState(() => _zoom.value = Matrix4.identity()),
+                            child: const Text('Reset zoom'),
+                          ),
+                      ],
                     ),
                   ],
                 ),
