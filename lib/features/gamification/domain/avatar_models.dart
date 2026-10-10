@@ -250,6 +250,19 @@ enum GameKind {
   focusStack('focus_stack', 'Focus Stack');
 
   const GameKind(this.key, this.label);
+
+  /// The game a stored row refers to.
+  ///
+  /// Rows written before a second game existed carry the default key, and a
+  /// key this version does not recognise must not throw on the History tab.
+  /// Both read as Signal Shift, which is what every one of those rows was.
+  static GameKind fromKey(String? key) {
+    for (final value in values) {
+      if (value.key == key) return value;
+    }
+    return signalShift;
+  }
+
   final String key;
   final String label;
 }
@@ -289,12 +302,33 @@ class SignalShiftLaunch {
   final String? reason;
 }
 
+/// Why a session paid nothing.
+///
+/// Worked out where the decision is actually made, rather than guessed
+/// afterwards by whichever screen happens to be showing the result. Three
+/// screens used to guess and two of them guessed wrong.
+enum GameRewardBlock {
+  /// It paid.
+  none,
+
+  /// Stopped before the halfway mark, which is where half pay begins.
+  stoppedEarly,
+
+  /// This game already paid once for this check-in. Switching to the other
+  /// game still pays; playing the same one again does not.
+  alreadyPlayed,
+
+  /// The daily ceiling for game coins is reached.
+  dailyCap,
+}
+
 class SignalShiftResult {
   const SignalShiftResult({
     required this.sessionId,
     required this.score,
     required this.coinsEarned,
     required this.completed,
+    this.block = GameRewardBlock.none,
     this.intensityAfter,
     this.helpfulness,
   });
@@ -305,4 +339,19 @@ class SignalShiftResult {
   final bool completed;
   final int? intensityAfter;
   final GameHelpfulness? helpfulness;
+
+  /// Which of the reasons applies, as a sentence.
+  final GameRewardBlock block;
+
+  /// Why this session paid nothing, or null when it paid.
+  String? get noCoinsReason => switch (block) {
+    GameRewardBlock.none => null,
+    GameRewardBlock.stoppedEarly =>
+      'Stopped before halfway, so this one does not pay. Play at least half '
+          'a session to earn coins.',
+    GameRewardBlock.alreadyPlayed =>
+      'This one already paid for this check-in. The other game still pays.',
+    GameRewardBlock.dailyCap =>
+      'No coins this time. The daily ceiling for games is already reached.',
+  };
 }

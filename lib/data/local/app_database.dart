@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
+import 'database_key.dart';
+
 part 'app_database.g.dart';
 
 class UserProfiles extends Table {
@@ -182,15 +184,15 @@ class GameSessions extends Table {
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.connection);
 
-  AppDatabase.open(String keyHex)
+  AppDatabase.open(DatabaseKey key)
     : super(
         driftDatabase(
-          name: 'habitwise_private',
+          name: key.databaseName,
           native: DriftNativeOptions(
             shareAcrossIsolates: true,
             setup: (database) {
               database
-                ..execute('PRAGMA key = "x\'$keyHex\'"')
+                ..execute('PRAGMA key = "x\'${key.hex}\'"')
                 ..execute('PRAGMA cipher_memory_security = ON')
                 ..execute('PRAGMA secure_delete = ON')
                 ..execute('PRAGMA foreign_keys = ON');

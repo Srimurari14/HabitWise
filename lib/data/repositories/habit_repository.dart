@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../core/utils/stored_enum.dart';
 import '../../features/craving_flow/domain/craving_models.dart';
 import '../../features/profile/domain/health_profile.dart';
 import '../local/app_database.dart';
@@ -76,10 +77,14 @@ class HabitRepository {
     final rows = await (database.select(
       database.learnedPriors,
     )..where((table) => table.cravingType.equals(type.name))).get();
-    return <TriggerCategory, double>{
-      for (final row in rows)
-        TriggerCategory.values.byName(row.category): row.score,
-    };
+    final scores = <TriggerCategory, double>{};
+    for (final row in rows) {
+      // A prior learned against a category this version no longer has is
+      // simply dropped. It must not take the whole lookup down with it.
+      final category = storedEnum(TriggerCategory.values, row.category);
+      if (category != null) scores[category] = row.score;
+    }
+    return scores;
   }
 
   Future<void> commitSession(CravingSession session) async {

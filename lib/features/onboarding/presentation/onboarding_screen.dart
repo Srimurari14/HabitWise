@@ -551,13 +551,20 @@ class _CharacterPageState extends ConsumerState<_CharacterPage> {
   @override
   void initState() {
     super.initState();
-    // The swatches are the real bodies, so they cannot be drawn until the art
-    // has been decoded.
-    if (!MascotAssets.ready) {
-      MascotAssets.ensureLoaded().then((_) {
-        if (mounted) setState(() {});
-      });
-    }
+    // The swatches are the real bodies, so this is the one screen that does
+    // need every colour read before it can show the choice.
+    MascotAssets.revision.addListener(_onAssetArrived);
+    MascotAssets.prewarm(bodies: MascotAssets.bodyColours);
+  }
+
+  @override
+  void dispose() {
+    MascotAssets.revision.removeListener(_onAssetArrived);
+    super.dispose();
+  }
+
+  void _onAssetArrived() {
+    if (mounted) setState(() {});
   }
 
   @override

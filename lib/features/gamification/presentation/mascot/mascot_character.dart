@@ -55,11 +55,41 @@ class _MascotCharacterState extends State<MascotCharacter> {
   @override
   void initState() {
     super.initState();
-    if (!MascotAssets.ready) {
-      MascotAssets.ensureLoaded().then((_) {
-        if (mounted) setState(() {});
-      });
-    }
+    MascotAssets.revision.addListener(_onAssetArrived);
+    _warm();
+  }
+
+  @override
+  void didUpdateWidget(MascotCharacter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A change of outfit may need art nobody has asked for yet.
+    if (oldWidget.equipped != widget.equipped) _warm();
+  }
+
+  @override
+  void dispose() {
+    MascotAssets.revision.removeListener(_onAssetArrived);
+    super.dispose();
+  }
+
+  /// Ask for exactly what this mascot wears, rather than the whole wardrobe.
+  void _warm() {
+    MascotAssets.prewarm(
+      items: <String>[
+        // Only the slots that actually draw. Several slots in the catalogue
+        // have no layer art, and asking for those sends the loader hunting
+        // for files that were never made.
+        for (final slot in mascotLayerOrder)
+          if (widget.equipped[slot] != null) widget.equipped[slot]!,
+        // The body has no face of its own, so there is always one on top.
+        widget.equipped['expression'] ?? 'face_happy',
+      ],
+      bodies: <String>[widget.equipped['baseColor'] ?? 'body_violet'],
+    );
+  }
+
+  void _onAssetArrived() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -75,6 +105,7 @@ class _MascotCharacterState extends State<MascotCharacter> {
           phase: widget.phase,
           lean: widget.lean,
           reducedMotion: widget.reducedMotion,
+          revision: MascotAssets.revision.value,
         ),
       ),
     );
@@ -88,6 +119,7 @@ class _MascotPainter extends CustomPainter {
     required this.phase,
     required this.lean,
     required this.reducedMotion,
+    required this.revision,
   });
 
   final Map<String, String> equipped;
@@ -95,6 +127,10 @@ class _MascotPainter extends CustomPainter {
   final double phase;
   final double lean;
   final bool reducedMotion;
+
+  /// How many images had arrived when this was built. A still mascot has to
+  /// repaint when a layer it was missing finally turns up.
+  final int revision;
 
   /// How much of the canvas the character fills, leaving room for a hat above
   /// and a companion to the side.
@@ -105,39 +141,58 @@ class _MascotPainter extends CustomPainter {
   ({double squash, double lift, double tilt}) get _motion {
     if (reducedMotion) return (squash: 0, lift: 0, tilt: lean * 0.05);
     final cycle = phase * math.pi * 2;
+    // These numbers are deliberately large. The old ones were written for a
+    // character drawn in code, where swinging arms and legs carried the pose
+    // and the body barely moved. A rendered blob has none of that, so squash,
+    // lift and tilt are the whole performance: anything subtle reads as a
+    // picture that is not moving at all.
     return switch (pose) {
-      MascotPose.idle || MascotPose.watch => (
-        squash: math.sin(cycle) * 0.03,
+      MascotPose.idle => (
+        // Breathing. Small, but never nothing.
+        squash: math.sin(cycle) * 0.05,
+        lift: math.sin(cycle) * 0.012,
+        tilt: lean * 0.1,
+      ),
+      MascotPose.watch => (
+        squash: math.sin(cycle) * 0.035,
         lift: 0,
-        tilt: lean * 0.08,
+        tilt: lean * 0.06,
       ),
       MascotPose.run => (
-        squash: -math.sin(cycle).abs() * 0.1 + 0.05,
-        lift: math.sin(cycle).abs() * 0.1,
-        tilt: lean * 0.14,
+        // Flattened on the ground, stretched in the air, which is what a
+        // bouncing ball does and what makes a run read as a run.
+        squash: 0.1 - math.sin(cycle).abs() * 0.24,
+        lift: math.sin(cycle).abs() * 0.13,
+        tilt: -0.05 + lean * 0.2,
       ),
-      MascotPose.laneChange => (squash: 0.03, lift: 0.03, tilt: lean * 0.26),
-      MascotPose.jump => (squash: -0.12, lift: 0.18, tilt: lean * 0.1),
-      MascotPose.land => (squash: 0.18 * (1 - phase), lift: 0, tilt: 0),
-      MascotPose.hit => (
-        squash: 0.15 * (1 - phase),
+      MascotPose.laneChange => (squash: 0.06, lift: 0.06, tilt: lean * 0.42),
+      MascotPose.jump => (squash: -0.2, lift: 0.2, tilt: lean * 0.14),
+      MascotPose.land => (
+        // Lands hard and springs back, rather than easing to a stop.
+        squash: 0.3 * (1 - phase) * (1 - phase),
         lift: 0,
-        tilt: math.sin(cycle * 3) * 0.12 * (1 - phase),
+        tilt: 0,
+      ),
+      MascotPose.hit => (
+        squash: 0.24 * (1 - phase),
+        lift: 0,
+        tilt: math.sin(cycle * 3) * 0.22 * (1 - phase),
       ),
       MascotPose.collect => (
-        squash: -0.05,
-        lift: 0.08 * math.sin(phase * math.pi),
+        // A pop: stretches tall for an instant and comes back.
+        squash: -0.16 * math.sin(phase * math.pi),
+        lift: 0.16 * math.sin(phase * math.pi),
         tilt: 0,
       ),
       MascotPose.celebrate => (
-        squash: -0.07 * math.sin(cycle).abs(),
-        lift: 0.12 * math.sin(phase * math.pi * 2).abs(),
-        tilt: math.sin(cycle) * 0.07,
+        squash: 0.08 - math.sin(cycle).abs() * 0.2,
+        lift: 0.18 * math.sin(phase * math.pi * 2).abs(),
+        tilt: math.sin(cycle) * 0.12,
       ),
       MascotPose.wince => (
-        squash: 0.1,
-        lift: 0,
-        tilt: math.sin(cycle * 2) * 0.04,
+        squash: 0.18,
+        lift: -0.02,
+        tilt: math.sin(cycle * 2) * 0.07,
       ),
     };
   }
@@ -242,5 +297,6 @@ class _MascotPainter extends CustomPainter {
       oldDelegate.pose != pose ||
       oldDelegate.phase != phase ||
       oldDelegate.lean != lean ||
-      oldDelegate.reducedMotion != reducedMotion;
+      oldDelegate.reducedMotion != reducedMotion ||
+      oldDelegate.revision != revision;
 }

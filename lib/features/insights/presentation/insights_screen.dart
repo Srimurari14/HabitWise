@@ -292,7 +292,7 @@ class _GameInsightCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Signal Shift pattern',
+                  'Game pattern',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),

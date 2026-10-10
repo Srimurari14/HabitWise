@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../../../core/utils/stats.dart';
+import '../../../core/utils/stored_enum.dart';
 import '../../../data/local/app_database.dart';
 import '../../craving_flow/domain/craving_models.dart';
 import '../../profile/domain/health_profile.dart';
@@ -117,9 +118,9 @@ abstract final class InsightEngine {
     };
     final subtriggerCounts = <String, int>{};
     for (final log in ordinary) {
-      if (log.category != null) {
-        final category = TriggerCategory.values.byName(log.category!);
-        categoryCounts[category] = categoryCounts[category]! + 1;
+      final category = storedEnum(TriggerCategory.values, log.category);
+      if (category != null) {
+        categoryCounts[category] = (categoryCounts[category] ?? 0) + 1;
       }
       final window = dayWindowFor(log.completedAt);
       timeCounts[window] = (timeCounts[window] ?? 0) + 1;

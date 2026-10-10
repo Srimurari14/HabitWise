@@ -134,6 +134,7 @@ class _FocusStackGameScreenState extends ConsumerState<FocusStackGameScreen>
   bool _paused = false;
   bool _finished = false;
   bool _saving = false;
+  String? _saveError;
   String? _flash;
   Timer? _flashTimer;
   final _focusNode = FocusNode();
@@ -380,32 +381,49 @@ class _FocusStackGameScreenState extends ConsumerState<FocusStackGameScreen>
 
   Future<void> _save({required bool completed}) async {
     if (_saving || _result != null) return;
-    setState(() => _saving = true);
-    final result = await ref
-        .read(gamificationRepositoryProvider)
-        .recordGame(
-          launch: SignalShiftLaunch(
-            kind: GameKind.focusStack,
-            source: widget.launch.source,
-            durationMinutes: _durationMinutes,
-            mode: _mode,
-            cravingSessionId: widget.launch.cravingSessionId,
-            category: widget.launch.category,
-            subtriggerId: widget.launch.subtriggerId,
-            intensityBefore: widget.launch.intensityBefore,
-            reason: widget.launch.reason,
-          ),
-          startedAt: _startedAt ?? DateTime.now(),
-          durationSeconds: _elapsed.inSeconds,
-          score: _score,
-          completed: completed,
-          intensityAfter: widget.launch.source == GameSource.recommended
-              ? _intensityAfter
-              : null,
-          helpfulness: widget.launch.source == GameSource.recommended
-              ? _helpfulness
-              : null,
-        );
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
+    final SignalShiftResult result;
+    try {
+      result = await ref
+          .read(gamificationRepositoryProvider)
+          .recordGame(
+            launch: SignalShiftLaunch(
+              kind: GameKind.focusStack,
+              source: widget.launch.source,
+              durationMinutes: _durationMinutes,
+              mode: _mode,
+              cravingSessionId: widget.launch.cravingSessionId,
+              category: widget.launch.category,
+              subtriggerId: widget.launch.subtriggerId,
+              intensityBefore: widget.launch.intensityBefore,
+              reason: widget.launch.reason,
+            ),
+            startedAt: _startedAt ?? DateTime.now(),
+            durationSeconds: _elapsed.inSeconds,
+            score: _score,
+            completed: completed,
+            intensityAfter: widget.launch.source == GameSource.recommended
+                ? _intensityAfter
+                : null,
+            helpfulness: widget.launch.source == GameSource.recommended
+                ? _helpfulness
+                : null,
+          );
+    } on Object catch (error) {
+      // The Return button stays disabled until a result arrives, so a failed
+      // save left this screen with a spinner and no way off it. Showing the
+      // failure and letting them leave beats trapping someone mid-craving in
+      // a game they already decided to stop.
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _saveError = 'Could not save this session: $error';
+      });
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _result = result;
@@ -478,7 +496,7 @@ class _FocusStackGameScreenState extends ConsumerState<FocusStackGameScreen>
           ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: Image.asset(
-              'assets/images/focus_stack_hero.png',
+              'assets/images/focus_stack_hero.webp',
               width: double.infinity,
               height: 230,
               fit: BoxFit.cover,
@@ -546,6 +564,15 @@ class _FocusStackGameScreenState extends ConsumerState<FocusStackGameScreen>
                   icon: Icons.block_rounded,
                   text: 'If the shapes reach the top, the bottom rows go',
                   value: 'no game over',
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Finishing a session pays coins, and stopping after '
+                  'halfway pays half. Practice pays 1 to 3, a craving '
+                  'session 3 to 12. Each game pays once per check-in, so '
+                  'switching to the other one pays again and replaying this '
+                  'one does not. Your score sets how many, and finishing '
+                  'always earns some.',
                 ),
               ],
             ),
@@ -953,13 +980,22 @@ class _FocusStackGameScreenState extends ConsumerState<FocusStackGameScreen>
             const SizedBox(height: 8),
             if (_saving)
               const CircularProgressIndicator()
+            else if (_saveError != null)
+              Text(
+                _saveError!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              )
             else if ((_result?.coinsEarned ?? 0) > 0)
               Text(
                 '+${_result!.coinsEarned} coins',
                 style: Theme.of(context).textTheme.titleLarge,
               )
             else
-              const Text('No coins were added for this session.'),
+              // Saying nothing was added, with no reason, reads as a judgement
+              // on how you played. The result knows which of the two reasons
+              // applies, so it is the one that says.
+              Text(_result?.noCoinsReason ?? '', textAlign: TextAlign.center),
             const SizedBox(height: 20),
             const Text(
               'That was one strategy. Go back to your plan and decide what '

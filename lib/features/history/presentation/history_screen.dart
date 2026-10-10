@@ -5,11 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/utils/stored_enum.dart';
 import '../../../core/widgets/habit_widgets.dart';
 import '../../../data/local/app_database.dart';
 import '../../../providers.dart';
 import '../../craving_flow/domain/craving_models.dart';
 import '../../craving_flow/domain/medical_rules.dart';
+import '../../gamification/domain/avatar_models.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
@@ -66,10 +68,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         label: 'Environment',
                       ),
                       DropdownMenuEntry(value: 'sensory', label: 'Sensory'),
-                      DropdownMenuEntry(
-                        value: 'games',
-                        label: 'Signal Shift only',
-                      ),
+                      DropdownMenuEntry(value: 'games', label: 'Games only'),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -141,7 +140,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   ],
                 if (games.isNotEmpty) ...<Widget>[
                   const SizedBox(height: 24),
-                  const SectionHeader('Signal Shift sessions'),
+                  const SectionHeader('Game sessions'),
                   const SizedBox(height: 6),
                   const Text(
                     'Game outcomes are shown separately from craving-plan outcomes.',
@@ -245,24 +244,20 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     String? subtriggerLabel,
     List<String>? planSteps,
   ) {
-    final type = log.cravingType == null
-        ? null
-        : CravingType.values.byName(log.cravingType!);
-    final category = log.category == null
-        ? null
-        : TriggerCategory.values.byName(log.category!);
-    final tags = (jsonDecode(log.contextJson) as List<Object?>)
-        .whereType<String>();
+    final type = storedEnum(CravingType.values, log.cravingType);
+    final category = storedEnum(TriggerCategory.values, log.category);
+    final tags = _tagsOf(log);
     final otherPlan = _otherPlanFor(ref, log);
+    final subtriggerId = log.subtriggerId;
     final repeat =
         log.safetyExit == 'none' &&
-            log.cravingType != null &&
-            log.category != null &&
-            log.subtriggerId != null
+            type != null &&
+            category != null &&
+            subtriggerId != null
         ? CravingRepeat(
-            type: CravingType.values.byName(log.cravingType!),
-            category: TriggerCategory.values.byName(log.category!),
-            subtriggerId: log.subtriggerId!,
+            type: type,
+            category: category,
+            subtriggerId: subtriggerId,
           )
         : null;
     return showModalBottomSheet<void>(
@@ -302,11 +297,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   value:
                       '${log.intensityBefore} before, ${log.intensityAfter} after',
                 ),
-              if (log.outcome != null)
-                _DetailRow(
-                  label: 'Outcome',
-                  value: CravingOutcome.values.byName(log.outcome!).label,
-                ),
+              if (storedEnum(CravingOutcome.values, log.outcome)
+                  case final outcome?)
+                _DetailRow(label: 'Outcome', value: outcome.label),
               if (log.planCompleted != null)
                 _DetailRow(
                   label: 'Primary plan completed',
@@ -460,10 +453,13 @@ class _GameHistoryCard extends StatelessWidget {
     final change = game.intensityBefore != null && game.intensityAfter != null
         ? game.intensityBefore! - game.intensityAfter!
         : null;
+    // Which game this was is recorded on the row. It used to be ignored, so
+    // every Focus Stack session in here called itself Signal Shift.
+    final kind = GameKind.fromKey(game.game);
     return ChoiceTile(
       title: game.source == 'recommended'
-          ? 'Recommended Signal Shift'
-          : 'Signal Shift practice',
+          ? 'Recommended ${kind.label}'
+          : '${kind.label} practice',
       subtitle: <String>[
         DateFormat('MMM d • h:mm a').format(game.completedAt),
         'score ${game.score}',
@@ -489,7 +485,7 @@ class _GameHistoryCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  'Signal Shift details',
+                  '${kind.label} details',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 14),
@@ -562,12 +558,8 @@ class _HistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final type = log.cravingType == null
-        ? null
-        : CravingType.values.byName(log.cravingType!);
-    final category = log.category == null
-        ? null
-        : TriggerCategory.values.byName(log.category!);
+    final type = storedEnum(CravingType.values, log.cravingType);
+    final category = storedEnum(TriggerCategory.values, log.category);
     return ChoiceTile(
       title:
           type?.label ??
@@ -602,4 +594,19 @@ class _DetailRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The context tags recorded with a check-in.
+///
+/// The column holds JSON this app wrote, but a row can predate a change in
+/// shape, and a half-written row survives a crash mid-save. Neither is worth
+/// taking the History tab down for, so anything unreadable counts as no tags.
+Iterable<String> _tagsOf(CravingLog log) {
+  try {
+    final decoded = jsonDecode(log.contextJson);
+    if (decoded is List) return decoded.whereType<String>();
+  } on Object {
+    // Not readable. Treated the same as a check-in that recorded none.
+  }
+  return const <String>[];
 }

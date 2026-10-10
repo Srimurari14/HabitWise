@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/habit_widgets.dart';
 import '../../../data/local/app_database.dart';
+import '../../../data/repositories/gamification_repository.dart';
 import '../../../providers.dart';
 import '../domain/avatar_models.dart';
 import 'mascot/mascot_assets.dart';
@@ -361,9 +362,12 @@ Future<void> _showCoinGuide(BuildContext context) {
               ),
               const Divider(height: 18),
             ],
-            const Text(
-              'Games can earn at most 30 coins a day. Practice pays less than a '
-              'recommended session, and a short run may earn nothing at all.',
+            Text(
+              'Each game pays once per check-in, so switching to the other '
+              'one pays again and replaying the same one does not. Games '
+              'together can earn at most $dailyGameCoinCap coins a day. '
+              'Practice pays less than a recommended session, and a short run '
+              'may earn nothing at all.',
             ),
             const SizedBox(height: 10),
             const Text(
@@ -822,22 +826,37 @@ class _ItemThumbState extends State<_ItemThumb> {
   @override
   void initState() {
     super.initState();
-    if (!MascotAssets.ready) {
-      MascotAssets.ensureLoaded().then((_) {
-        if (mounted) setState(() {});
-      });
-    }
+    MascotAssets.revision.addListener(_onAssetArrived);
+    // The locker is the one place that really does want the whole wardrobe,
+    // but only the tile asking for a piece pays for it.
+    MascotAssets.prewarm(
+      items: widget.itemId.startsWith('body_')
+          ? const <String>[]
+          : <String>[widget.itemId],
+      bodies: widget.itemId.startsWith('body_')
+          ? <String>[widget.itemId]
+          : const <String>[],
+    );
+  }
+
+  @override
+  void dispose() {
+    MascotAssets.revision.removeListener(_onAssetArrived);
+    super.dispose();
+  }
+
+  void _onAssetArrived() {
+    if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    // body() falls back to the default colour for anything it does not know,
-    // so it is only asked about ids that really are body colours.
-    final image =
-        MascotAssets.layer(widget.itemId) ??
-        (widget.itemId.startsWith('body_')
-            ? MascotAssets.body(widget.itemId)
-            : null);
+    // Which of the two the id belongs to is decided before asking, not by
+    // trying one and falling back. Asking for a layer named after a body
+    // colour sends the loader looking for a file that never existed.
+    final image = widget.itemId.startsWith('body_')
+        ? MascotAssets.body(widget.itemId)
+        : MascotAssets.layer(widget.itemId);
     if (image == null) {
       return Icon(_CosmeticGrid._icon(widget.slot), size: 34);
     }

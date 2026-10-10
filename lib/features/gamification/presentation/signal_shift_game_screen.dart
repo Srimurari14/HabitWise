@@ -510,7 +510,7 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
           ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: Image.asset(
-              'assets/images/signal_shift_hero.png',
+              'assets/images/signal_shift_hero.webp',
               width: double.infinity,
               height: 230,
               fit: BoxFit.cover,
@@ -585,7 +585,9 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
                 const Text(
                   'Finishing a session pays coins, and stopping after '
                   'halfway pays half. Practice pays 1 to 3, a craving '
-                  'session 3 to 12, up to 30 coins a day.\n'
+                  'session 3 to 12. Each game pays once per check-in, so '
+                  'switching to the other one pays again and replaying this '
+                  'one does not.\n'
                   'A run of sparks pays 10, then 20, 30, 40, 50, and a hit '
                   'sends it back to 10. Shards stand upright and a surge '
                   'covers two streams, so the way past those is the third '
@@ -1062,17 +1064,9 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
               )
             else
               // Saying nothing was added, with no reason, reads as a judgement
-              // on how you played. There are only two reasons, and guessing
-              // between them is how this line claimed the cap was reached when
-              // the run had simply been stopped early.
-              Text(
-                _result?.completed == false
-                    ? 'Stopped before halfway, so this one does not pay. Play '
-                          'at least half a session to earn coins.'
-                    : 'No coins this time. Coins are capped at 30 a day and '
-                          'that cap is already reached.',
-                textAlign: TextAlign.center,
-              ),
+              // on how you played. The result knows which of the two reasons
+              // applies, so it is the one that says.
+              Text(_result?.noCoinsReason ?? '', textAlign: TextAlign.center),
             const SizedBox(height: 20),
             const Text(
               'The game was one strategy. Return to your plan and decide what support fits next.',
@@ -1097,7 +1091,8 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
       builder: (context) => AlertDialog(
         title: const Text('End this session?'),
         content: const Text(
-          'Stopping is always okay. An incomplete session will be recorded without a coin reward.',
+          'Stopping is always okay. Past the halfway mark a stopped session '
+          'still pays half; before that it is recorded without a reward.',
         ),
         actions: <Widget>[
           OutlinedButton(

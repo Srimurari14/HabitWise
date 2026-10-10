@@ -71,29 +71,87 @@ void main() {
     },
   );
 
-  test('game reward is capped at thirty coins per day', () async {
-    for (var index = 0; index < 6; index++) {
-      await repository.recordGame(
-        launch: const SignalShiftLaunch(
-          source: GameSource.recommended,
-          durationMinutes: 3,
-          mode: GameMode.standard,
-          cravingSessionId: 'craving',
-          category: 'sensory',
-          subtriggerId: 'understimulated',
-          intensityBefore: 7,
-        ),
-        startedAt: DateTime.now().subtract(const Duration(minutes: 3)),
-        durationSeconds: 180,
-        score: 2000,
-        completed: true,
-        intensityAfter: 4,
-        helpfulness: GameHelpfulness.helpful,
-      );
-    }
-    final gameRewards = await (database.select(
+  Future<SignalShiftResult> playFullSession({
+    required String cravingSessionId,
+    GameKind kind = GameKind.signalShift,
+  }) {
+    return repository.recordGame(
+      launch: SignalShiftLaunch(
+        kind: kind,
+        source: GameSource.recommended,
+        durationMinutes: 3,
+        mode: GameMode.standard,
+        cravingSessionId: cravingSessionId,
+        category: 'sensory',
+        subtriggerId: 'understimulated',
+        intensityBefore: 7,
+      ),
+      startedAt: DateTime.now().subtract(const Duration(minutes: 3)),
+      durationSeconds: 180,
+      score: 2000,
+      completed: true,
+      intensityAfter: 4,
+      helpfulness: GameHelpfulness.helpful,
+    );
+  }
+
+  Future<int> gameCoins() async {
+    final rewards = await (database.select(
       database.coinLedger,
     )..where((table) => table.sourceType.equals('game'))).get();
-    expect(gameRewards.fold<int>(0, (total, row) => total + row.amount), 30);
+    return rewards.fold<int>(0, (total, row) => total + row.amount);
+  }
+
+  test('replaying the same game in one check-in pays only once', () async {
+    final first = await playFullSession(cravingSessionId: 'craving');
+    final second = await playFullSession(cravingSessionId: 'craving');
+    expect(first.coinsEarned, 12);
+    expect(second.coinsEarned, 0);
+    expect(second.block, GameRewardBlock.alreadyPlayed);
+    // The run is still recorded. It just does not pay.
+    expect(second.score, 2000);
+    expect(await gameCoins(), 12);
+  });
+
+  test('switching to the other game in one check-in pays again', () async {
+    await playFullSession(cravingSessionId: 'craving');
+    final other = await playFullSession(
+      cravingSessionId: 'craving',
+      kind: GameKind.focusStack,
+    );
+    expect(other.coinsEarned, 12);
+    expect(other.block, GameRewardBlock.none);
+    expect(await gameCoins(), 24);
+  });
+
+  test('game reward is capped per day across check-ins', () async {
+    // Three check-ins, both games in each, is 72 at full score. The daily
+    // ceiling is what stops it there.
+    for (final craving in <String>['one', 'two', 'three']) {
+      await playFullSession(cravingSessionId: craving);
+      await playFullSession(
+        cravingSessionId: craving,
+        kind: GameKind.focusStack,
+      );
+    }
+    expect(await gameCoins(), dailyGameCoinCap);
+  });
+
+  test('stopping before halfway pays nothing and says so', () async {
+    final result = await repository.recordGame(
+      launch: const SignalShiftLaunch(
+        source: GameSource.recommended,
+        durationMinutes: 3,
+        mode: GameMode.standard,
+        cravingSessionId: 'craving',
+      ),
+      startedAt: DateTime.now().subtract(const Duration(seconds: 20)),
+      durationSeconds: 20,
+      score: 40,
+      completed: false,
+    );
+    expect(result.coinsEarned, 0);
+    expect(result.block, GameRewardBlock.stoppedEarly);
+    expect(result.noCoinsReason, contains('halfway'));
   });
 }

@@ -607,7 +607,12 @@ class _PlanStepState extends State<_PlanStep> {
   var _started = false;
   var _timeUp = false;
   final _completedSteps = <int>{};
-  SignalShiftResult? _gameResult;
+
+  /// What each game did, kept per game so switching to the other one does not
+  /// erase the first. Nothing downstream reads this: the session itself is
+  /// recorded by the game screen and linked by the craving session id.
+  final Map<GameKind, SignalShiftResult> _gameResults =
+      <GameKind, SignalShiftResult>{};
 
   @override
   void dispose() {
@@ -682,7 +687,7 @@ class _PlanStepState extends State<_PlanStep> {
       ),
     );
     if (!mounted || result == null) return;
-    setState(() => _gameResult = result);
+    setState(() => _gameResults[kind] = result);
   }
 
   @override
@@ -909,52 +914,65 @@ class _PlanStepState extends State<_PlanStep> {
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 14),
-                  if (_gameResult == null) ...<Widget>[
-                    // Two games are on offer, so the card shows both rather
-                    // than one picture of one of them sitting above the other
-                    // one's button.
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Expanded(
-                          child: _GameChoice(
-                            image: 'assets/images/focus_stack_hero.png',
-                            label: 'Focus Stack',
-                            icon: Icons.grid_view_rounded,
-                            onPlay: () => _playGame(GameKind.focusStack),
-                          ),
+                  // Both games stay on offer after one has been played. Five
+                  // minutes of the same puzzle is not what everyone wants, and
+                  // switching is itself a change of attention. The daily coin
+                  // cap is what keeps this from being farmed.
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Expanded(
+                        child: _GameChoice(
+                          image: 'assets/images/focus_stack_hero.webp',
+                          label: 'Focus Stack',
+                          icon: Icons.grid_view_rounded,
+                          played: _gameResults.containsKey(GameKind.focusStack),
+                          onPlay: () => _playGame(GameKind.focusStack),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _GameChoice(
-                            image: 'assets/images/signal_shift_hero.png',
-                            label: 'Signal Shift',
-                            icon: Icons.directions_run_rounded,
-                            onPlay: () => _playGame(GameKind.signalShift),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _GameChoice(
+                          image: 'assets/images/signal_shift_hero.webp',
+                          label: 'Signal Shift',
+                          icon: Icons.directions_run_rounded,
+                          played: _gameResults.containsKey(
+                            GameKind.signalShift,
                           ),
+                          onPlay: () => _playGame(GameKind.signalShift),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (_gameResults.isEmpty)
                     Text(
                       'In one study, three minutes of a shape-fitting puzzle '
                       'lowered craving strength by about 13 points out of 100. '
                       'It decided nothing for people, and your own rating '
                       'before and after is the one that counts.',
                       style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ] else ...<Widget>[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Saved: score ${_gameResult!.score}, ${_gameResult!.coinsEarned} coins. '
-                      'Coins are capped at 30 a day.',
-                    ),
-                  ],
+                    )
+                  else
+                    for (final entry in _gameResults.entries) ...<Widget>[
+                      Text(
+                        'Saved: ${entry.key.label}, score '
+                        '${entry.value.score}, '
+                        '${entry.value.coinsEarned} coins.',
+                      ),
+                      if (entry.value.noCoinsReason case final reason?)
+                        Text(
+                          reason,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      const SizedBox(height: 6),
+                    ],
                   const SizedBox(height: 6),
                   Text(
-                    _gameResult == null
+                    _gameResults.isEmpty
                         ? 'Prefer not to play? Skip it and continue the plan below.'
-                        : 'Continue with the rest of your plan below.',
+                        : 'Play the other one if you want, or continue with '
+                              'the rest of your plan below.',
                   ),
                 ],
               ),
@@ -1336,8 +1354,10 @@ class _FollowUpStepState extends State<_FollowUpStep> {
                   : <bool>{_planCompleted!},
               emptySelectionAllowed: true,
               showSelectedIcon: false,
+              // Empty selection is allowed, so tapping the chosen answer
+              // again clears it and this fires with nothing in it.
               onSelectionChanged: (selection) => setState(() {
-                _planCompleted = selection.first;
+                _planCompleted = selection.isEmpty ? null : selection.first;
                 _helpfulStepIndex = null;
               }),
             ),
@@ -1387,8 +1407,11 @@ class _FollowUpStepState extends State<_FollowUpStep> {
                   : <bool>{_cravingReturned!},
               emptySelectionAllowed: true,
               showSelectedIcon: false,
-              onSelectionChanged: (selection) =>
-                  setState(() => _cravingReturned = selection.first),
+              onSelectionChanged: (selection) => setState(
+                () => _cravingReturned = selection.isEmpty
+                    ? null
+                    : selection.first,
+              ),
             ),
             const SizedBox(height: 18),
             Text(
@@ -1691,6 +1714,7 @@ class _GameChoice extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.onPlay,
+    this.played = false,
   });
 
   final String image;
@@ -1698,11 +1722,15 @@ class _GameChoice extends StatelessWidget {
   final IconData icon;
   final VoidCallback onPlay;
 
+  /// Whether this one has already been played in this check-in. It still
+  /// opens; the label just stops pretending nothing happened.
+  final bool played;
+
   @override
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: 'Play $label',
+      label: played ? 'Play $label again' : 'Play $label',
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onPlay,
@@ -1727,7 +1755,7 @@ class _GameChoice extends StatelessWidget {
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(
-                    label,
+                    played ? '$label again' : label,
                     style: Theme.of(context).textTheme.titleSmall,
                     overflow: TextOverflow.ellipsis,
                   ),

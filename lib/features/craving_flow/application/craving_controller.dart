@@ -161,11 +161,34 @@ class CravingFlowController extends Notifier<CravingFlowState> {
   }
 
   Future<void> selectSubtrigger(String id) async {
+    // Both of these are answered by earlier steps, so a missing one means the
+    // flow was re-entered without them rather than that the person skipped a
+    // question. Asking again is the only honest move.
+    final type = state.session.type;
+    if (type == null) {
+      state = state.copyWith(step: CravingFlowStep.type);
+      return;
+    }
+    final category = state.session.category;
+    if (category == null) {
+      state = state.copyWith(step: CravingFlowStep.category);
+      return;
+    }
     final config = await ref.read(cravingConfigProvider.future);
     final profile =
         ref.read(profileProvider).value ??
         await ref.read(repositoryProvider).getProfile();
-    final subtrigger = config.subtriggers.firstWhere((item) => item.id == id);
+    final subtrigger = config.subtriggers
+        .where((item) => item.id == id)
+        .firstOrNull;
+    if (subtrigger == null) {
+      // The id was taken from a list this config built, so losing it means
+      // the config changed underneath an open check-in. The subtrigger list
+      // comes from the category, so sending them back a step is what offers
+      // a working list. Throwing here would end the check-in instead.
+      state = state.copyWith(step: CravingFlowStep.category);
+      return;
+    }
     final chosen = _rules.choosePlans(
       subtrigger: subtrigger,
       config: config,
@@ -173,9 +196,8 @@ class CravingFlowController extends Notifier<CravingFlowState> {
     );
     final primary = chosen.primary;
     final backup = chosen.backup;
-    final category = state.session.category!;
     final explanation = PlanExplanationEngine.buildDriver(
-      type: state.session.type!,
+      type: type,
       category: category,
       subtrigger: subtrigger,
       rankedCategories: state.rankedCategories,

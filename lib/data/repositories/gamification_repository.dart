@@ -6,11 +6,37 @@ import 'package:uuid/uuid.dart';
 import '../../features/gamification/domain/avatar_models.dart';
 import '../local/app_database.dart';
 
+/// The most a day of playing can pay.
+///
+/// Each game already pays once per check-in, so this only bites on a day with
+/// several cravings and high scores in all of them. It is deliberately not
+/// tight: the person having the heaviest day is the one this app is for, and
+/// a ceiling that punishes them is the wrong ceiling. What it is really there
+/// for is to stop the app quietly rewarding invented check-ins, which would
+/// poison the pattern learning that Insights runs on.
+const dailyGameCoinCap = 60;
+
 class GamificationRepository {
   GamificationRepository(this.database);
 
   final AppDatabase database;
   static const _uuid = Uuid();
+
+  /// Whether this game has already paid out for this check-in.
+  Future<bool> _hasPaidThisCheckIn(
+    String cravingSessionId,
+    GameKind kind,
+  ) async {
+    final rows =
+        await (database.select(database.gameSessions)..where(
+              (table) =>
+                  table.cravingSessionId.equals(cravingSessionId) &
+                  table.game.equals(kind.key) &
+                  table.coinsAwarded.isBiggerThanValue(0),
+            ))
+            .get();
+    return rows.isNotEmpty;
+  }
 
   Stream<AvatarProfileData> watchAvatar() {
     return (database.select(
@@ -399,13 +425,28 @@ class GamificationRepository {
     return database.transaction(() async {
       final now = DateTime.now();
       var reward = 0;
+      var block = GameRewardBlock.none;
+
+      // Each game pays once per check-in. Someone who wants a change of
+      // puzzle halfway through a craving should get one, and someone who
+      // wants to grind the same one for coins should not. Without this the
+      // daily ceiling was the only brake, which made it carry weight it was
+      // never designed for.
+      final cravingSessionId = launch.cravingSessionId;
+      final alreadyPlayed =
+          cravingSessionId != null &&
+          await _hasPaidThisCheckIn(cravingSessionId, launch.kind);
+
       // Stopping early is often the right thing: during a craving the person
       // played until they felt steady enough to stop, which is what the game
       // is for. Half the reward for half the session, rather than treating it
-      // as a failed run. The halfway mark is also what stops the daily cap
-      // being farmed, since a session has to be genuinely played to count.
+      // as a failed run.
       final half = durationSeconds * 2 >= launch.durationMinutes * 60;
-      if (completed || half) {
+      if (alreadyPlayed) {
+        block = GameRewardBlock.alreadyPlayed;
+      } else if (!completed && !half) {
+        block = GameRewardBlock.stoppedEarly;
+      } else {
         // Finishing always pays something: a craving session is never a test
         // a person can fail. Playing well widens the bonus on top.
         var requested = launch.source == GameSource.recommended
@@ -426,7 +467,11 @@ class GamificationRepository {
           0,
           (total, row) => total + row.amount,
         );
-        reward = requested.clamp(0, (30 - awardedToday).clamp(0, 30));
+        reward = requested.clamp(
+          0,
+          (dailyGameCoinCap - awardedToday).clamp(0, dailyGameCoinCap),
+        );
+        if (reward == 0) block = GameRewardBlock.dailyCap;
       }
       await database
           .into(database.gameSessions)
@@ -458,7 +503,7 @@ class GamificationRepository {
                 eventId: 'game:$id',
                 createdAt: now,
                 amount: reward,
-                reason: 'Signal Shift session',
+                reason: '${launch.kind.label} session',
                 relatedSessionId: Value(id),
                 sourceType: 'game',
               ),
@@ -469,6 +514,7 @@ class GamificationRepository {
         score: score,
         coinsEarned: reward,
         completed: completed,
+        block: block,
         intensityAfter: intensityAfter,
         helpfulness: helpfulness,
       );
