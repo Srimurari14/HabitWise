@@ -50,3 +50,6 @@ app.*.map.json
 *.aab
 *.zip
 test/failures/
+
+# Full resolution source art. Only the processed assets are shipped.
+art_source/

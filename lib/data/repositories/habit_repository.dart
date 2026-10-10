@@ -211,7 +211,7 @@ class HabitRepository {
               graceAvailable: Value(usedGrace ? false : true),
             ),
           );
-      await _unlockMilestones(current);
+      await _unlockMilestones(await _checkInCount());
       return;
     }
     await database
@@ -224,13 +224,29 @@ class HabitRepository {
             lastActiveDay: Value(today),
           ),
         );
-    await _unlockMilestones(1);
+    await _unlockMilestones(await _checkInCount());
   }
 
-  Future<void> _unlockMilestones(int streak) async {
-    for (final target in <int>[3, 7, 14, 30]) {
-      if (streak < target) continue;
-      final milestoneId = 'streak_$target';
+  /// How many check-ins have been finished, which is what the rewards are
+  /// counted in rather than days.
+  ///
+  /// Every finished check-in counts, including the ones where nothing helped
+  /// and the ones that ended at the safety exit. Rewarding only the check-ins
+  /// a person marks as successful would pay them to tell the app what it wants
+  /// to hear, and those same answers are what Insights learns from. Turning up
+  /// during a craving is the behaviour worth rewarding.
+  Future<int> _checkInCount() async {
+    final count = database.cravingLogs.id.count();
+    final row = await (database.selectOnly(
+      database.cravingLogs,
+    )..addColumns(<Expression<Object>>[count])).getSingle();
+    return row.read(count) ?? 0;
+  }
+
+  Future<void> _unlockMilestones(int checkIns) async {
+    for (final target in <int>[3, 7, 14, 21, 30]) {
+      if (checkIns < target) continue;
+      final milestoneId = 'checkins_$target';
       final inserted = await database
           .into(database.milestoneUnlocks)
           .insert(
@@ -248,22 +264,41 @@ class HabitRepository {
               eventId: 'milestone:$milestoneId',
               createdAt: DateTime.now(),
               amount: target >= 14 ? 30 : 15,
-              reason: '$target-day momentum milestone',
+              reason: '$target check-ins',
               sourceType: 'milestone',
             ),
             mode: InsertMode.insertOrIgnore,
           );
-      final cosmeticId = switch (target) {
-        7 => 'back_wings',
-        14 => 'celebration_confetti',
-        _ => null,
+      // A milestone hands over a whole look, not a single trinket: a plain
+      // warm set at a week, the one people actually want at a fortnight, and
+      // a single showpiece at a month.
+      final reward = switch (target) {
+        7 => const <String>[
+          'hat_cosy_knit',
+          'outfit_cosy_sweater',
+          'shoes_cosy_boots',
+        ],
+        14 => const <String>[
+          'hat_aurora_circlet',
+          'outfit_aurora_cloak',
+          'scarf_aurora_collar',
+          'shoes_aurora_boots',
+        ],
+        21 => const <String>[
+          'hat_urban_beanie',
+          'outfit_urban_jacket',
+          'shoes_urban_trainers',
+        ],
+        // Thirty days is still open. Better to hand over nothing than to
+        // promise an item that does not exist, which is what the old code did.
+        _ => const <String>[],
       };
-      if (cosmeticId != null) {
+      for (final itemId in reward) {
         await database
             .into(database.ownedCosmetics)
             .insert(
               OwnedCosmeticsCompanion.insert(
-                itemId: cosmeticId,
+                itemId: itemId,
                 acquiredAt: DateTime.now(),
                 source: milestoneId,
               ),

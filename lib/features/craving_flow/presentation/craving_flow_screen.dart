@@ -664,12 +664,13 @@ class _PlanStepState extends State<_PlanStep> {
     });
   }
 
-  Future<void> _playGame() async {
+  Future<void> _playGame(GameKind kind) async {
     final recommendation = widget.gameRecommendation;
     if (recommendation == null) return;
     final result = await context.push<SignalShiftResult>(
-      '/signal-shift',
+      kind == GameKind.focusStack ? '/focus-stack' : '/signal-shift',
       extra: SignalShiftLaunch(
+        kind: kind,
         source: GameSource.recommended,
         durationMinutes: recommendation.durationMinutes,
         mode: recommendation.mode,
@@ -898,7 +899,7 @@ class _PlanStepState extends State<_PlanStep> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'Optional: play Signal Shift',
+                          'Optional: play a short game',
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                       ),
@@ -917,16 +918,33 @@ class _PlanStepState extends State<_PlanStep> {
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 14),
-                  if (_gameResult == null)
+                  if (_gameResult == null) ...<Widget>[
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.tonalIcon(
-                        onPressed: _playGame,
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('Play the recommended shift'),
+                        onPressed: () => _playGame(GameKind.focusStack),
+                        icon: const Icon(Icons.grid_view_rounded),
+                        label: const Text('Play Focus Stack'),
                       ),
-                    )
-                  else ...<Widget>[
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _playGame(GameKind.signalShift),
+                        icon: const Icon(Icons.directions_run_rounded),
+                        label: const Text('Play Signal Shift'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'In one study, three minutes of a shape-fitting puzzle '
+                      'lowered craving strength by about 13 points out of 100. '
+                      'It decided nothing for people, and your own rating '
+                      'before and after is the one that counts.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ] else ...<Widget>[
                     const SizedBox(height: 4),
                     Text(
                       'Saved: score ${_gameResult!.score}, ${_gameResult!.coinsEarned} coins. '
@@ -1230,12 +1248,13 @@ class _FollowUpStepState extends State<_FollowUpStep> {
   late bool? _cravingReturned = widget.state.session.cravingReturned;
   final _tags = <String>{};
 
-  Future<void> _playGame() async {
+  Future<void> _playGame(GameKind kind) async {
     final recommendation = widget.state.gameRecommendation;
     if (recommendation == null) return;
     await context.push<SignalShiftResult>(
-      '/signal-shift',
+      kind == GameKind.focusStack ? '/focus-stack' : '/signal-shift',
       extra: SignalShiftLaunch(
+        kind: kind,
         source: GameSource.recommended,
         durationMinutes: recommendation.durationMinutes,
         mode: recommendation.mode,
@@ -1419,12 +1438,21 @@ class _FollowUpStepState extends State<_FollowUpStep> {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
-                          onPressed: _playGame,
-                          icon: const Icon(Icons.sports_esports_rounded),
+                          onPressed: () => _playGame(GameKind.focusStack),
+                          icon: const Icon(Icons.grid_view_rounded),
                           label: Text(
-                            'Play Signal Shift for '
+                            'Play Focus Stack for '
                             '${game.durationMinutes} minutes',
                           ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _playGame(GameKind.signalShift),
+                          icon: const Icon(Icons.directions_run_rounded),
+                          label: const Text('Or Signal Shift'),
                         ),
                       ),
                     ],

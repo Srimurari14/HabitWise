@@ -154,6 +154,10 @@ class GameSessions extends Table {
   TextColumn get helpfulness => text().nullable()();
   BoolColumn get cravingReturned => boolean().nullable()();
 
+  /// Which game was played. Everything recorded before a second game existed
+  /// was Signal Shift, so this defaults rather than being nullable.
+  TextColumn get game => text().withDefault(const Constant('signal_shift'))();
+
   @override
   Set<Column<Object>> get primaryKey => <Column<Object>>{id};
 }
@@ -196,7 +200,7 @@ class AppDatabase extends _$AppDatabase {
       );
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -220,6 +224,11 @@ class AppDatabase extends _$AppDatabase {
         await migrator.createTable(streakStates);
         await migrator.createTable(milestoneUnlocks);
         await migrator.createTable(gameSessions);
+      }
+      // Only for databases that already had the table. Coming from below 3 the
+      // table is created above with this column already in it.
+      if (from >= 3 && from < 4) {
+        await migrator.addColumn(gameSessions, gameSessions.game);
       }
     },
     beforeOpen: (details) async {
