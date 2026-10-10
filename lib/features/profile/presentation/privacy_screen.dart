@@ -47,7 +47,11 @@ class PrivacyScreen extends StatelessWidget {
               icon: Icons.delete_forever_outlined,
               title: 'You control deletion',
               body:
-                  'Delete all removes the profile, history, learned weights, plan statistics, and reflections, then returns the app to onboarding.',
+                  'Delete all removes your profile, check-in history, learned '
+                  'patterns, plan statistics, reflections, avatar, coins, '
+                  'items, saved outfits, streak, milestones and game '
+                  'sessions. Any reminders are cancelled, and the app returns '
+                  'to onboarding.',
             ),
             const SizedBox(height: 28),
             Text(

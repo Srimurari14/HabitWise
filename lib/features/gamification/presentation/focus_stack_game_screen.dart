@@ -475,6 +475,19 @@ class _FocusStackGameScreenState extends ConsumerState<FocusStackGameScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Image.asset(
+              'assets/images/focus_stack_hero.png',
+              width: double.infinity,
+              height: 230,
+              fit: BoxFit.cover,
+              // The art may not be in place yet, and a missing picture should
+              // not put a red error box on a screen someone opens mid-craving.
+              errorBuilder: (context, error, stack) => const SizedBox.shrink(),
+            ),
+          ),
+          const SizedBox(height: 20),
           Text(
             widget.launch.source == GameSource.recommended
                 ? 'An optional attention shift'

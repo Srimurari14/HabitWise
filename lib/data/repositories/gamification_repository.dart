@@ -399,12 +399,19 @@ class GamificationRepository {
     return database.transaction(() async {
       final now = DateTime.now();
       var reward = 0;
-      if (completed) {
+      // Stopping early is often the right thing: during a craving the person
+      // played until they felt steady enough to stop, which is what the game
+      // is for. Half the reward for half the session, rather than treating it
+      // as a failed run. The halfway mark is also what stops the daily cap
+      // being farmed, since a session has to be genuinely played to count.
+      final half = durationSeconds * 2 >= launch.durationMinutes * 60;
+      if (completed || half) {
         // Finishing always pays something: a craving session is never a test
         // a person can fail. Playing well widens the bonus on top.
-        final requested = launch.source == GameSource.recommended
+        var requested = launch.source == GameSource.recommended
             ? (3 + score ~/ 180).clamp(3, 12)
             : (1 + score ~/ 250).clamp(1, 3);
+        if (!completed) requested = (requested / 2).ceil();
         final startOfDay = DateTime(now.year, now.month, now.day);
         final tomorrow = startOfDay.add(const Duration(days: 1));
         final dailyRows =

@@ -883,16 +883,7 @@ class _PlanStepState extends State<_PlanStep> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.asset(
-                      'assets/images/signal_shift_hero.png',
-                      height: 145,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 2),
                   Row(
                     children: <Widget>[
                       const Icon(Icons.sports_esports_rounded),
@@ -919,22 +910,30 @@ class _PlanStepState extends State<_PlanStep> {
                   ),
                   const SizedBox(height: 14),
                   if (_gameResult == null) ...<Widget>[
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.tonalIcon(
-                        onPressed: () => _playGame(GameKind.focusStack),
-                        icon: const Icon(Icons.grid_view_rounded),
-                        label: const Text('Play Focus Stack'),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () => _playGame(GameKind.signalShift),
-                        icon: const Icon(Icons.directions_run_rounded),
-                        label: const Text('Play Signal Shift'),
-                      ),
+                    // Two games are on offer, so the card shows both rather
+                    // than one picture of one of them sitting above the other
+                    // one's button.
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Expanded(
+                          child: _GameChoice(
+                            image: 'assets/images/focus_stack_hero.png',
+                            label: 'Focus Stack',
+                            icon: Icons.grid_view_rounded,
+                            onPlay: () => _playGame(GameKind.focusStack),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _GameChoice(
+                            image: 'assets/images/signal_shift_hero.png',
+                            label: 'Signal Shift',
+                            icon: Icons.directions_run_rounded,
+                            onPlay: () => _playGame(GameKind.signalShift),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 10),
                     Text(
@@ -1679,6 +1678,64 @@ class _ConfigError extends StatelessWidget {
         title: 'The support guide could not load',
         message:
             'Close and reopen the app. Your existing check-ins are safe. Details: $error',
+      ),
+    );
+  }
+}
+
+/// One of the two games, as a picture you can tap. The plan card used to show
+/// a single banner of one game above a button that started the other.
+class _GameChoice extends StatelessWidget {
+  const _GameChoice({
+    required this.image,
+    required this.label,
+    required this.icon,
+    required this.onPlay,
+  });
+
+  final String image;
+  final String label;
+  final IconData icon;
+  final VoidCallback onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Play $label',
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onPlay,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.asset(
+                image,
+                height: 96,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stack) =>
+                    const SizedBox(height: 96),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Icon(icon, size: 18),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.titleSmall,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

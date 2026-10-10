@@ -57,7 +57,9 @@ class ProfileScreen extends ConsumerWidget {
                       subtitle: Text(
                         profile.contexts.isEmpty
                             ? 'None selected'
-                            : '${profile.contexts.length} selected',
+                            : profile.contexts
+                                  .map((item) => item.label)
+                                  .join(', '),
                       ),
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => _editContexts(context, ref, profile),
@@ -71,7 +73,7 @@ class ProfileScreen extends ConsumerWidget {
                             ? 'None added'
                             : profile.hasWearOffHunger
                             ? 'Wear-off hunger noted'
-                            : '${profile.medications.length} pattern added',
+                            : 'Pattern added',
                       ),
                       trailing: const Icon(Icons.chevron_right_rounded),
                       onTap: () => _editMedication(context, ref, profile),
@@ -104,8 +106,18 @@ class ProfileScreen extends ConsumerWidget {
                     SwitchListTile.adaptive(
                       secondary: const Icon(Icons.bloodtype_outlined),
                       title: const Text('Glucose safety check'),
-                      subtitle: const Text(
-                        'Routes warning signs to your existing care plan.',
+                      subtitle: Text(
+                        profile.glucoseSafetyEnabled
+                            ? 'On. Warning signs go to your care plan, and '
+                                  'games are not offered during a check-in.'
+                            : profile.contexts.contains(
+                                HealthContext.diabetesGlucose,
+                              )
+                            ? 'You noted diabetes or glucose. Turning this on '
+                                  'routes warning signs to your care plan and '
+                                  'stops games being offered.'
+                            : 'Routes warning signs to your existing care '
+                                  'plan. Games are not offered while it is on.',
                       ),
                       value: profile.glucoseSafetyEnabled,
                       onChanged: (value) => ref
@@ -214,9 +226,12 @@ class ProfileScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 20),
+              // No version number until there is a release to number. The
+              // footer sat at 1.0.0 while the build said 1.2.0, and a wrong
+              // number is worse than none.
               const Center(
                 child: Text(
-                  'HabitWise 1.0.0 • Offline-first',
+                  'HabitWise • Offline-first',
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -327,9 +342,11 @@ class ProfileScreen extends ConsumerWidget {
           profile.copyWith(
             contexts: value,
             edSafetyMode: edMode,
-            glucoseSafetyEnabled:
-                profile.glucoseSafetyEnabled ||
-                value.contains(HealthContext.diabetesGlucose),
+            // Ticking a health context used to switch the glucose check on by
+            // itself, which quietly removed both games from a different
+            // screen. The context is recorded; turning the check on is the
+            // person's decision, made on the switch that explains it.
+            glucoseSafetyEnabled: profile.glucoseSafetyEnabled,
           ),
         );
   }
@@ -469,7 +486,10 @@ class ProfileScreen extends ConsumerWidget {
       builder: (context) => AlertDialog(
         title: const Text('Enable safety mode?'),
         content: const Text(
-          'HabitWise will permanently remove delay, resistance, portion-control, and win/loss framing from this local profile. Routine profile editing cannot turn it off.',
+          'HabitWise will permanently remove delay, resistance, '
+          'portion-control and win/loss framing from this profile. This '
+          'switch cannot turn it back off. The only way to undo it is '
+          'Delete all local data, which erases everything else too.',
         ),
         actions: <Widget>[
           TextButton(
@@ -521,7 +541,10 @@ class ProfileScreen extends ConsumerWidget {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Notification permission was not granted.'),
+              content: Text(
+                'Notifications are switched off for HabitWise. Turn them on '
+                'in your phone settings to use reminders.',
+              ),
             ),
           );
         }
@@ -551,7 +574,10 @@ class ProfileScreen extends ConsumerWidget {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Notification permission was not granted.'),
+              content: Text(
+                'Notifications are switched off for HabitWise. Turn them on '
+                'in your phone settings to use reminders.',
+              ),
             ),
           );
         }
@@ -613,6 +639,12 @@ class ProfileScreen extends ConsumerWidget {
       ),
     );
     if (!(finalConfirmation ?? false)) return;
+    // Reminders are scheduled with the operating system, not stored in the
+    // database, so wiping the tables left them firing. Somebody who deleted
+    // everything still got an evening buzz from an app they had just emptied.
+    final notifications = ref.read(notificationServiceProvider);
+    await notifications.cancelPatternReminder();
+    await notifications.cancelReflectionReminder();
     await ref.read(repositoryProvider).deleteAllData();
     ref
       ..invalidate(gamificationReadyProvider)

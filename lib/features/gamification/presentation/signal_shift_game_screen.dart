@@ -64,6 +64,13 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
   Timer? _flashTimer;
   double _shake = 0;
   bool _saving = false;
+
+  /// Whether the urge slider has actually been moved. It opens on the number
+  /// from before the game, which made it look answered and saved a reading
+  /// nobody gave. This is the single number that says whether the game does
+  /// anything, so it has to be a real answer.
+  bool _rated = false;
+  String? _saveError;
   bool _finished = false;
   int _intensityAfter = 5;
   GameHelpfulness? _helpfulness;
@@ -159,7 +166,7 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
         // new perspective that is about 0.88 down rather than 0.73.
         if (!object.resolved && object.y >= 0.88) {
           object.resolved = true;
-          if (object.lane == _lane) {
+          if (object.covers(_lane)) {
             if (object.spark) {
               _combo++;
               _bestCombo = math.max(_bestCombo, _combo);
@@ -170,7 +177,7 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
               object.collected = true;
               _collect = 1;
               _showFlash('+$points');
-            } else if (!_jumping) {
+            } else if (!_jumping || !object.kind.hoppable) {
               // Losing a long run should feel like losing something, not like
               // a flat ten point fee.
               final lostRun = _combo >= 4 ? _combo : 0;
@@ -231,16 +238,21 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
     if (_pendingRows.isEmpty) _pendingRows.addAll(_buildWave(progress));
     final row = _pendingRows.removeAt(0);
     for (final cell in row) {
-      _objects.add(_TrackObject(lane: cell.lane, y: -0.08, spark: cell.spark));
+      _objects.add(_TrackObject(lane: cell.lane, y: -0.08, kind: cell.kind));
     }
   }
 
   List<List<_Cell>> _buildWave(double progress) {
     const gap = <_Cell>[];
     List<_Cell> sparks(List<int> lanes) =>
-        lanes.map((lane) => _Cell(lane, true)).toList();
+        lanes.map((lane) => _Cell(lane, _ObjectKind.spark)).toList();
     List<_Cell> blocks(List<int> lanes) =>
-        lanes.map((lane) => _Cell(lane, false)).toList();
+        lanes.map((lane) => _Cell(lane, _ObjectKind.clump)).toList();
+    List<_Cell> shards(List<int> lanes) =>
+        lanes.map((lane) => _Cell(lane, _ObjectKind.shards)).toList();
+    List<_Cell> rings(List<int> lanes) =>
+        lanes.map((lane) => _Cell(lane, _ObjectKind.ring)).toList();
+    List<_Cell> surge(int lane) => <_Cell>[_Cell(lane, _ObjectKind.surge)];
     final lane = _random.nextInt(3);
     final other = (lane + 1 + _random.nextInt(2)) % 3;
 
@@ -281,7 +293,7 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
     ];
     // A block beside a spark: take the point or play it safe.
     final pressure = <List<_Cell>>[
-      <_Cell>[_Cell(lane, true), _Cell(other, false)],
+      <_Cell>[_Cell(lane, _ObjectKind.spark), _Cell(other, _ObjectKind.clump)],
       gap,
       sparks(<int>[lane]),
     ];
@@ -294,6 +306,30 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
       sparks(<int>[lane == 1 ? 0 : lane]),
     ];
 
+    // A surge takes two streams, so the third is the answer and the move is
+    // forced rather than optional.
+    final surgeLane = _random.nextInt(3);
+    final sweep = <List<_Cell>>[
+      sparks(<int>[(surgeLane + 2) % 3]),
+      surge(surgeLane),
+      gap,
+      sparks(<int>[(surgeLane + 2) % 3]),
+    ];
+    // Shards cannot be hopped, so this one is about reading which lane is
+    // closed rather than reacting with the jump.
+    final stand = <List<_Cell>>[
+      shards(<int>[lane]),
+      sparks(<int>[other]),
+      gap,
+    ];
+    // A ring can be hopped or gone around, which makes it the only object
+    // with two right answers.
+    final pulse = <List<_Cell>>[
+      rings(<int>[lane]),
+      gap,
+      sparks(<int>[lane]),
+    ];
+
     final calm = _mode == GameMode.calm;
     final harder = progress > 0.12 && !calm;
     // Listing a wave more than once makes it more likely. Roughly two in three
@@ -303,9 +339,9 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
       run,
       zigzag,
       choice,
-      if (!calm) ...<List<List<_Cell>>>[gate, gate, pressure, pressure],
-      if (calm) gate,
-      if (harder) ...<List<List<_Cell>>>[wall, slalom, slalom],
+      if (!calm) ...<List<List<_Cell>>>[gate, gate, pressure, pressure, pulse],
+      if (calm) ...<List<List<_Cell>>>[gate, pulse],
+      if (harder) ...<List<List<_Cell>>>[wall, slalom, slalom, sweep, stand],
     ];
     return <List<_Cell>>[
       ...waves[_random.nextInt(waves.length)],
@@ -385,31 +421,46 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
 
   Future<void> _save({required bool completed}) async {
     if (_saving || _result != null) return;
-    setState(() => _saving = true);
-    final result = await ref
-        .read(gamificationRepositoryProvider)
-        .recordGame(
-          launch: SignalShiftLaunch(
-            source: widget.launch.source,
-            durationMinutes: _durationMinutes,
-            mode: _mode,
-            cravingSessionId: widget.launch.cravingSessionId,
-            category: widget.launch.category,
-            subtriggerId: widget.launch.subtriggerId,
-            intensityBefore: widget.launch.intensityBefore,
-            reason: widget.launch.reason,
-          ),
-          startedAt: _startedAt ?? DateTime.now(),
-          durationSeconds: _elapsed.inSeconds,
-          score: _score,
-          completed: completed,
-          intensityAfter: widget.launch.source == GameSource.recommended
-              ? _intensityAfter
-              : null,
-          helpfulness: widget.launch.source == GameSource.recommended
-              ? _helpfulness
-              : null,
-        );
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
+    final SignalShiftResult result;
+    try {
+      result = await ref
+          .read(gamificationRepositoryProvider)
+          .recordGame(
+            launch: SignalShiftLaunch(
+              source: widget.launch.source,
+              durationMinutes: _durationMinutes,
+              mode: _mode,
+              cravingSessionId: widget.launch.cravingSessionId,
+              category: widget.launch.category,
+              subtriggerId: widget.launch.subtriggerId,
+              intensityBefore: widget.launch.intensityBefore,
+              reason: widget.launch.reason,
+            ),
+            startedAt: _startedAt ?? DateTime.now(),
+            durationSeconds: _elapsed.inSeconds,
+            score: _score,
+            completed: completed,
+            intensityAfter: widget.launch.source == GameSource.recommended
+                ? _intensityAfter
+                : null,
+            helpfulness: widget.launch.source == GameSource.recommended
+                ? _helpfulness
+                : null,
+          );
+    } on Exception catch (error) {
+      // Without this the screen sat on a spinner with a dead Return button
+      // and no way out but killing the app, and the run was lost anyway.
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _saveError = 'Could not save this session: $error';
+      });
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _result = result;
@@ -475,7 +526,9 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
           const SizedBox(height: 8),
           Text(
             widget.launch.reason ??
-                'Move your character between three lanes, collect Focus Sparks, and jump over Signal Blocks. Missing an item never ends the game.',
+                'Shift between three streams of signal, gather sparks, and '
+                    'get past the interference. Missing something never ends the '
+                    'run.',
           ),
           const SizedBox(height: 18),
           HabitCard(
@@ -500,7 +553,7 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
                 const SizedBox(height: 12),
                 const _RuleRow(
                   icon: Icons.auto_awesome_rounded,
-                  text: 'Collect a Focus Spark',
+                  text: 'Gather a spark',
                   value: '+10',
                 ),
                 const _RuleRow(
@@ -515,19 +568,29 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
                 ),
                 const _RuleRow(
                   icon: Icons.arrow_upward_rounded,
-                  text: 'Jump over a Signal Block',
+                  text: 'Hop a clump of interference, or a pulse ring',
                   value: '+5',
                 ),
                 const _RuleRow(
+                  icon: Icons.change_circle_outlined,
+                  text: 'Shards and surges cannot be hopped. Shift instead',
+                  value: 'move',
+                ),
+                const _RuleRow(
                   icon: Icons.close_rounded,
-                  text: 'Run into a Signal Block',
+                  text: 'Take a hit',
                   value: '-10',
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'A run of sparks pays 10, then 20, 30, 40, 50. Running into '
-                  'a block sends it back to 10. Your score sets how many coins '
-                  'the session earns, and finishing always earns some.',
+                  'Finishing a session pays coins, and stopping after '
+                  'halfway pays half. Practice pays 1 to 3, a craving '
+                  'session 3 to 12, up to 30 coins a day.\n'
+                  'A run of sparks pays 10, then 20, 30, 40, 50, and a hit '
+                  'sends it back to 10. Shards stand upright and a surge '
+                  'covers two streams, so the way past those is the third '
+                  'stream, never the hop. Your score sets how many coins the '
+                  'session earns, and finishing always earns some.',
                 ),
                 const Divider(height: 26),
                 Text(
@@ -876,7 +939,14 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Center(
-              child: MascotCharacter(equipped: avatar.equipped, size: 145),
+              child: MascotCharacter(
+                equipped: <String, String>{
+                  ...avatar.equipped,
+                  'expression': 'face_happy',
+                },
+                size: 145,
+                pose: MascotPose.watch,
+              ),
             ),
             Text(
               'Notice what changed',
@@ -887,15 +957,21 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
               'There is no right result. This helps HabitWise learn whether the game fits this kind of moment.',
             ),
             const SizedBox(height: 22),
-            Text('Urge now: $_intensityAfter / 10'),
+            Text(
+              _rated
+                  ? 'Urge now: $_intensityAfter / 10'
+                  : 'Urge now: move the slider',
+            ),
             Slider(
               value: _intensityAfter.toDouble(),
               min: 1,
               max: 10,
               divisions: 9,
               label: '$_intensityAfter',
-              onChanged: (value) =>
-                  setState(() => _intensityAfter = value.round()),
+              onChanged: (value) => setState(() {
+                _intensityAfter = value.round();
+                _rated = true;
+              }),
             ),
             const SizedBox(height: 14),
             const Text('Did the attention shift help?'),
@@ -921,7 +997,7 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: _helpfulness == null
+                onPressed: _helpfulness == null || !_rated
                     ? null
                     : () => _save(completed: true),
                 child: const Text('Save game check-in'),
@@ -936,7 +1012,18 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
         padding: const EdgeInsets.all(24),
         child: Column(
           children: <Widget>[
-            MascotCharacter(equipped: avatar.equipped, size: 155),
+            MascotCharacter(
+              equipped: <String, String>{
+                ...avatar.equipped,
+                'expression': _result?.completed == true
+                    ? 'face_excited'
+                    : 'face_happy',
+              },
+              size: 155,
+              pose: _result?.completed == true
+                  ? MascotPose.celebrate
+                  : MascotPose.watch,
+            ),
             const SizedBox(height: 14),
             Text(
               _result?.completed == true ? 'Shift complete' : 'Session ended',
@@ -962,13 +1049,30 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
             const SizedBox(height: 8),
             if (_saving)
               const CircularProgressIndicator()
+            else if (_saveError != null)
+              Text(
+                _saveError!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              )
             else if ((_result?.coinsEarned ?? 0) > 0)
               Text(
                 '+${_result!.coinsEarned} coins',
                 style: Theme.of(context).textTheme.titleLarge,
               )
             else
-              const Text('No coins were added for this session.'),
+              // Saying nothing was added, with no reason, reads as a judgement
+              // on how you played. There are only two reasons, and guessing
+              // between them is how this line claimed the cap was reached when
+              // the run had simply been stopped early.
+              Text(
+                _result?.completed == false
+                    ? 'Stopped before halfway, so this one does not pay. Play '
+                          'at least half a session to earn coins.'
+                    : 'No coins this time. Coins are capped at 30 a day and '
+                          'that cap is already reached.',
+                textAlign: TextAlign.center,
+              ),
             const SizedBox(height: 20),
             const Text(
               'The game was one strategy. Return to your plan and decide what support fits next.',
@@ -976,7 +1080,7 @@ class _SignalShiftGameScreenState extends ConsumerState<SignalShiftGameScreen>
             ),
             const SizedBox(height: 24),
             FilledButton(
-              onPressed: _result == null
+              onPressed: _saving
                   ? null
                   : () => context.pop<SignalShiftResult>(_result),
               child: const Text('Return'),
@@ -1044,20 +1148,49 @@ class _RuleRow extends StatelessWidget {
   }
 }
 
+/// What can come down a stream.
+///
+/// Three kinds of interference rather than one, because each asks for a
+/// different move: a clump can be hopped, a stand of shards has to be gone
+/// around, and a surge takes two streams at once so the only answer is the
+/// third one.
+enum _ObjectKind {
+  spark,
+  clump,
+  shards,
+  surge,
+  ring;
+
+  bool get isSpark => this == _ObjectKind.spark;
+
+  /// Low enough to hop. Shards stand upright and a surge is a wall of light,
+  /// so jumping into either is still a hit.
+  bool get hoppable => this == _ObjectKind.clump || this == _ObjectKind.ring;
+
+  /// A surge covers this stream and the next one round.
+  bool get spans => this == _ObjectKind.surge;
+}
+
+/// One item in one lane of a spawned row.
 class _Cell {
-  const _Cell(this.lane, this.spark);
+  const _Cell(this.lane, this.kind);
   final int lane;
-  final bool spark;
+  final _ObjectKind kind;
 }
 
 class _TrackObject {
-  _TrackObject({required this.lane, required this.y, required this.spark});
+  _TrackObject({required this.lane, required this.y, required this.kind});
   final int lane;
   bool collected = false;
   bool cleared = false;
   double y;
-  final bool spark;
+  final _ObjectKind kind;
   bool resolved = false;
+
+  bool get spark => kind.isSpark;
+
+  bool covers(int playerLane) =>
+      lane == playerLane || (kind.spans && (lane + 1) % 3 == playerLane);
 }
 
 /// A ring thrown out when the signal shifts. The game's signature: every
@@ -1108,6 +1241,9 @@ class _TrackPainter extends CustomPainter {
 
   static const _spark = Color(0xFFFFD86B);
   static const _interference = Color(0xFFF2708A);
+  static const _shard = Color(0xFFC9A8FF);
+  static const _ringColour = Color(0xFF5FD0E8);
+  static const _surgeColour = Color(0xFFFF9D6E);
 
   /// Each stream carries its own colour, so a shift is a change of light and
   /// not just a sideways step.
@@ -1307,7 +1443,100 @@ class _TrackPainter extends CustomPainter {
       return;
     }
     if (object.cleared) return;
-    _paintInterference(canvas, at, object.lane);
+    switch (object.kind) {
+      case _ObjectKind.spark:
+        break;
+      case _ObjectKind.clump:
+        _paintInterference(canvas, at, object.lane);
+      case _ObjectKind.shards:
+        _paintShards(canvas, at);
+      case _ObjectKind.ring:
+        _paintRing(canvas, at, object.lane);
+      case _ObjectKind.surge:
+        _paintSurge(canvas, size, object);
+    }
+  }
+
+  /// Shards: angular, upright, the one thing a hop will not clear, so they
+  /// are drawn tall and hard-edged where everything else is soft.
+  void _paintShards(Canvas canvas, Offset at) {
+    const heights = <double>[30, 46, 24];
+    const offsets = <double>[-22, 0, 20];
+    final colour = highContrast
+        ? Color.lerp(_shard, Colors.white, 0.3)!
+        : _shard;
+    for (var i = 0; i < 3; i++) {
+      final base = at.translate(offsets[i], 16);
+      final tall = heights[i] * (calm ? 1 : 1 + math.sin(clock * 2 + i) * 0.04);
+      final path = Path()
+        ..moveTo(base.dx, base.dy)
+        ..lineTo(base.dx - 11, base.dy - tall * 0.42)
+        ..lineTo(base.dx, base.dy - tall)
+        ..lineTo(base.dx + 11, base.dy - tall * 0.42)
+        ..close();
+      canvas.drawPath(path, Paint()..color = colour);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = Colors.white.withValues(alpha: 0.5),
+      );
+    }
+  }
+
+  /// A pulse ring, opening outward where it sits. It can be hopped or gone
+  /// around, so it is the one object with two right answers.
+  void _paintRing(Canvas canvas, Offset at, int lane) {
+    final beat = calm ? 0.0 : (clock * 1.3 + lane) % 1;
+    for (var i = 0; i < 3; i++) {
+      final phase = (beat + i / 3) % 1;
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: at,
+          width: 36 + phase * 92,
+          height: 14 + phase * 32,
+        ),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.5 - phase * 2
+          ..color = _ringColour.withValues(alpha: (1 - phase) * 0.85),
+      );
+    }
+  }
+
+  /// A surge sweeps two of the three streams, so there is always one way
+  /// through and the answer is always to move, never to stop.
+  void _paintSurge(Canvas canvas, Size size, _TrackObject object) {
+    final from = object.lane;
+    final to = (object.lane + 1) % 3;
+    final left = math.min(
+      _laneCentre(from, object.y, size),
+      _laneCentre(to, object.y, size),
+    );
+    final right = math.max(
+      _laneCentre(from, object.y, size),
+      _laneCentre(to, object.y, size),
+    );
+    final mid = Offset((left + right) / 2, object.y * size.height);
+    final reach = (right - left) / 2 + size.width * 0.1;
+    for (var arc = 0; arc < 3; arc++) {
+      canvas.drawArc(
+        Rect.fromCenter(
+          center: Offset(mid.dx, mid.dy + arc * 10),
+          width: reach * 2 - arc * 14,
+          height: 46 - arc * 7.0,
+        ),
+        math.pi,
+        math.pi,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 6.0 - arc * 1.2
+          ..color = _surgeColour.withValues(alpha: 0.9 - arc * 0.22),
+      );
+    }
   }
 
   /// A four point star with a halo, breathing in time with the field.

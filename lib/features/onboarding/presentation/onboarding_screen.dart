@@ -6,6 +6,8 @@ import 'package:uuid/uuid.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/habit_widgets.dart';
 import '../../../providers.dart';
+import '../../gamification/domain/avatar_models.dart';
+import '../../gamification/presentation/mascot/mascot_assets.dart';
 import '../../gamification/presentation/mascot/mascot_character.dart';
 import '../../profile/domain/health_profile.dart';
 
@@ -532,7 +534,7 @@ class _SafetyPage extends StatelessWidget {
   }
 }
 
-class _CharacterPage extends StatelessWidget {
+class _CharacterPage extends ConsumerStatefulWidget {
   const _CharacterPage({
     required this.bodyColour,
     required this.onColourChanged,
@@ -541,15 +543,36 @@ class _CharacterPage extends StatelessWidget {
   final String bodyColour;
   final ValueChanged<String> onColourChanged;
 
-  static const _colours = <(String, String, Color)>[
-    ('body_violet', 'Violet', Color(0xFF8B5CF6)),
-    ('body_sky', 'Sky', Color(0xFF4FA8F5)),
-    ('body_blossom', 'Blossom', Color(0xFFF2789F)),
-    ('body_mint', 'Mint', Color(0xFF5FD3B2)),
-  ];
+  @override
+  ConsumerState<_CharacterPage> createState() => _CharacterPageState();
+}
+
+class _CharacterPageState extends ConsumerState<_CharacterPage> {
+  @override
+  void initState() {
+    super.initState();
+    // The swatches are the real bodies, so they cannot be drawn until the art
+    // has been decoded.
+    if (!MascotAssets.ready) {
+      MascotAssets.ensureLoaded().then((_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Which colours are free comes from the catalogue. It used to be a second
+    // hardcoded list, which can quietly offer a colour nobody owns.
+    final catalog = ref.watch(cosmeticCatalogProvider).value;
+    final free = catalog == null
+        ? const <CosmeticItem>[]
+        : catalog.items
+              .where(
+                (item) => item.slot == CosmeticSlot.baseColor && item.starter,
+              )
+              .toList();
+
     return PageFrame(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -567,7 +590,7 @@ class _CharacterPage extends StatelessWidget {
           Center(
             child: MascotCharacter(
               equipped: <String, String>{
-                'baseColor': bodyColour,
+                'baseColor': widget.bodyColour,
                 'expression': 'face_happy',
               },
               size: 200,
@@ -580,26 +603,29 @@ class _CharacterPage extends StatelessWidget {
             spacing: 12,
             runSpacing: 12,
             children: <Widget>[
-              for (final option in _colours)
+              for (final option in free)
                 Semantics(
                   button: true,
-                  selected: bodyColour == option.$1,
-                  label: option.$2,
+                  selected: widget.bodyColour == option.id,
+                  label: option.name,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(40),
-                    onTap: () => onColourChanged(option.$1),
+                    onTap: () => widget.onColourChanged(option.id),
                     child: Container(
-                      width: 52,
-                      height: 52,
+                      padding: const EdgeInsets.all(5),
                       decoration: BoxDecoration(
-                        color: option.$3,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: bodyColour == option.$1
+                          color: widget.bodyColour == option.id
                               ? Theme.of(context).colorScheme.primary
                               : Theme.of(context).colorScheme.outlineVariant,
-                          width: bodyColour == option.$1 ? 3 : 1,
+                          width: widget.bodyColour == option.id ? 3 : 1,
                         ),
+                      ),
+                      child: SizedBox(
+                        width: 46,
+                        height: 46,
+                        child: _BodySwatch(colourId: option.id),
                       ),
                     ),
                   ),
@@ -609,6 +635,24 @@ class _CharacterPage extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// The blob itself, so the dot you pick is the colour you get. The old
+/// swatches were hand-picked hex values left over from the character that was
+/// drawn in code, and they no longer matched the art.
+class _BodySwatch extends StatelessWidget {
+  const _BodySwatch({required this.colourId});
+
+  final String colourId;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = MascotAssets.body(colourId);
+    if (image == null) {
+      return const Center(child: SizedBox.shrink());
+    }
+    return RawImage(image: image, fit: BoxFit.contain);
   }
 }
 
