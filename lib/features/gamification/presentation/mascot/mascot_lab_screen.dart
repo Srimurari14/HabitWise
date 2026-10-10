@@ -208,8 +208,9 @@ class _MascotLabScreenState extends State<MascotLabScreen>
                         ),
                         if (_scale > 1.01)
                           TextButton(
-                            onPressed: () =>
-                                setState(() => _zoom.value = Matrix4.identity()),
+                            onPressed: () => setState(
+                              () => _zoom.value = Matrix4.identity(),
+                            ),
                             child: const Text('Reset zoom'),
                           ),
                       ],
