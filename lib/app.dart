@@ -10,7 +10,6 @@ import 'features/gamification/presentation/avatar_screen.dart';
 import 'features/gamification/presentation/focus_stack_game_screen.dart';
 import 'features/gamification/presentation/mascot/mascot_lab_screen.dart';
 import 'features/gamification/presentation/signal_shift_game_screen.dart';
-import 'features/gamification/presentation/signal_style_lab_screen.dart';
 import 'features/history/presentation/history_screen.dart';
 import 'features/home/presentation/app_shell.dart';
 import 'features/home/presentation/home_screen.dart';
@@ -49,10 +48,6 @@ class _HabitWiseAppState extends ConsumerState<HabitWiseApp> {
       ),
       // Temporary review screen for the new mascot. Not linked from the app.
       // Temporary review screen for the new game look. Not linked from the app.
-      GoRoute(
-        path: '/signal-lab',
-        builder: (context, state) => const SignalStyleLabScreen(),
-      ),
       GoRoute(
         path: '/mascot-lab',
         builder: (context, state) => const MascotLabScreen(),

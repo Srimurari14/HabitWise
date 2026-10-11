@@ -109,16 +109,12 @@ class AvatarScreen extends ConsumerWidget {
                 label: const Text('Practice Focus Stack'),
               ),
               const SizedBox(height: 10),
-              // Temporary. Remove once the mascot is approved or dropped.
+              // Kept on purpose, to show how the outfits sit on the mascot.
+              // It goes before release; the games do not need it.
               TextButton.icon(
                 onPressed: () => context.push('/mascot-lab'),
                 icon: const Icon(Icons.science_outlined),
                 label: const Text('Mascot lab (work in progress)'),
-              ),
-              TextButton.icon(
-                onPressed: () => context.push('/signal-lab'),
-                icon: const Icon(Icons.auto_awesome_outlined),
-                label: const Text('Signal Shift look (work in progress)'),
               ),
               const SizedBox(height: 8),
               const Text(

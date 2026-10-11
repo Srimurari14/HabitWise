@@ -20,6 +20,35 @@ class HistoryScreen extends ConsumerStatefulWidget {
   ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
 }
 
+/// One entry in the history list, as a description rather than a widget.
+enum _RowKind { header, empty, day, log, gamesHeader, game }
+
+class _Row {
+  const _Row.header()
+    : kind = _RowKind.header,
+      day = null,
+      log = null,
+      game = null;
+  const _Row.empty()
+    : kind = _RowKind.empty,
+      day = null,
+      log = null,
+      game = null;
+  const _Row.day(this.day) : kind = _RowKind.day, log = null, game = null;
+  const _Row.log(this.log) : kind = _RowKind.log, day = null, game = null;
+  const _Row.gamesHeader()
+    : kind = _RowKind.gamesHeader,
+      day = null,
+      log = null,
+      game = null;
+  const _Row.game(this.game) : kind = _RowKind.game, day = null, log = null;
+
+  final _RowKind kind;
+  final DateTime? day;
+  final CravingLog? log;
+  final GameSession? game;
+}
+
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   String _filter = 'all';
   String _range = 'all';
@@ -37,125 +66,174 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         error: (error, stackTrace) =>
             Center(child: Text('Could not load history: $error')),
         data: (items) {
-          final filtered = _applyFilter(_applyRange(items));
-          return PageFrame(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  'Your check-ins',
-                  style: Theme.of(context).textTheme.headlineLarge,
+          final rows = _rowsFor(items, games);
+          // A Column inside a scroll view builds and lays out every child,
+          // on screen or not. That is fine for a handful of check-ins and
+          // steadily worse for somebody who has used the app for a year,
+          // which is exactly the person whose history is worth reading. A
+          // builder makes only what is visible.
+          return SafeArea(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 680),
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                  itemCount: rows.length,
+                  itemBuilder: (context, index) =>
+                      _buildRow(context, rows[index], items, config),
                 ),
-                const SizedBox(height: 8),
-                const Text('A neutral record of what you noticed and tried.'),
-                const SizedBox(height: 18),
-                // Filters only appear once there is something to filter.
-                if (items.isNotEmpty) ...<Widget>[
-                  DropdownMenu<String>(
-                    initialSelection: _filter,
-                    label: const Text('Show'),
-                    expandedInsets: EdgeInsets.zero,
-                    onSelected: (value) =>
-                        setState(() => _filter = value ?? 'all'),
-                    dropdownMenuEntries: const <DropdownMenuEntry<String>>[
-                      DropdownMenuEntry(value: 'all', label: 'All check-ins'),
-                      DropdownMenuEntry(value: 'hunger', label: 'Hunger'),
-                      DropdownMenuEntry(value: 'body', label: 'Body need'),
-                      DropdownMenuEntry(value: 'emotion', label: 'Emotional'),
-                      DropdownMenuEntry(value: 'habit', label: 'Habit loop'),
-                      DropdownMenuEntry(
-                        value: 'environment',
-                        label: 'Environment',
-                      ),
-                      DropdownMenuEntry(value: 'sensory', label: 'Sensory'),
-                      DropdownMenuEntry(value: 'games', label: 'Games only'),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownMenu<String>(
-                    initialSelection: _range,
-                    label: const Text('When'),
-                    expandedInsets: EdgeInsets.zero,
-                    onSelected: (value) =>
-                        setState(() => _range = value ?? 'all'),
-                    dropdownMenuEntries: const <DropdownMenuEntry<String>>[
-                      DropdownMenuEntry(value: 'all', label: 'All time'),
-                      DropdownMenuEntry(value: '7', label: 'Last 7 days'),
-                      DropdownMenuEntry(value: '30', label: 'Last 30 days'),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 20),
-                if (filtered.isEmpty)
-                  EmptyState(
-                    icon: Icons.history_rounded,
-                    title: items.isEmpty
-                        ? 'No check-ins yet'
-                        : 'Nothing matches this filter',
-                    message: items.isEmpty
-                        ? 'Your check-ins will appear here. Start one from the Home tab whenever you want.'
-                        : 'Try a different filter or time range.',
-                  )
-                else
-                  for (
-                    var index = 0;
-                    index < filtered.length;
-                    index++
-                  ) ...<Widget>[
-                    if (index == 0 ||
-                        !_sameDay(
-                          filtered[index - 1].completedAt,
-                          filtered[index].completedAt,
-                        )) ...<Widget>[
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8, bottom: 10),
-                        child: Text(
-                          _dateHeading(filtered[index].completedAt),
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ),
-                    ],
-                    _HistoryCard(
-                      log: filtered[index],
-                      subtriggerLabel: config?.subtriggers
-                          .where(
-                            (item) => item.id == filtered[index].subtriggerId,
-                          )
-                          .firstOrNull
-                          ?.label,
-                      onTap: () => _showDetails(
-                        context,
-                        ref,
-                        filtered[index],
-                        config?.subtriggers
-                            .where(
-                              (item) => item.id == filtered[index].subtriggerId,
-                            )
-                            .firstOrNull
-                            ?.label,
-                        config?.interventions[filtered[index].planId]?.steps,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                if (games.isNotEmpty) ...<Widget>[
-                  const SizedBox(height: 24),
-                  const SectionHeader('Game sessions'),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Game outcomes are shown separately from craving-plan outcomes.',
-                  ),
-                  const SizedBox(height: 12),
-                  for (final game in games.take(12)) ...<Widget>[
-                    _GameHistoryCard(game: game),
-                    const SizedBox(height: 10),
-                  ],
-                ],
-              ],
+              ),
             ),
           );
         },
       ),
+    );
+  }
+
+  /// What the list is made of, worked out up front.
+  ///
+  /// These are descriptions, not widgets: making the list costs one small
+  /// object per entry, and the widgets are built as they come into view.
+  List<_Row> _rowsFor(List<CravingLog> items, List<GameSession> games) {
+    final filtered = _applyFilter(_applyRange(items));
+    final rows = <_Row>[const _Row.header()];
+    if (filtered.isEmpty) {
+      rows.add(const _Row.empty());
+    } else {
+      for (var index = 0; index < filtered.length; index++) {
+        if (index == 0 ||
+            !_sameDay(
+              filtered[index - 1].completedAt,
+              filtered[index].completedAt,
+            )) {
+          rows.add(_Row.day(filtered[index].completedAt));
+        }
+        rows.add(_Row.log(filtered[index]));
+      }
+    }
+    if (games.isNotEmpty) {
+      rows.add(const _Row.gamesHeader());
+      for (final game in games.take(12)) {
+        rows.add(_Row.game(game));
+      }
+    }
+    return rows;
+  }
+
+  Widget _buildRow(
+    BuildContext context,
+    _Row row,
+    List<CravingLog> items,
+    CravingConfig? config,
+  ) {
+    switch (row.kind) {
+      case _RowKind.header:
+        return _buildHeader(context, items);
+      case _RowKind.empty:
+        return EmptyState(
+          icon: Icons.history_rounded,
+          title: items.isEmpty
+              ? 'No check-ins yet'
+              : 'Nothing matches this filter',
+          message: items.isEmpty
+              ? 'Your check-ins will appear here. Start one from the Home tab whenever you want.'
+              : 'Try a different filter or time range.',
+        );
+      case _RowKind.day:
+        return Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 10),
+          child: Text(
+            _dateHeading(row.day!),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        );
+      case _RowKind.log:
+        final log = row.log!;
+        final subtriggerLabel = config?.subtriggers
+            .where((item) => item.id == log.subtriggerId)
+            .firstOrNull
+            ?.label;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: _HistoryCard(
+            log: log,
+            subtriggerLabel: subtriggerLabel,
+            onTap: () => _showDetails(
+              context,
+              ref,
+              log,
+              subtriggerLabel,
+              config?.interventions[log.planId]?.steps,
+            ),
+          ),
+        );
+      case _RowKind.gamesHeader:
+        return const Padding(
+          padding: EdgeInsets.only(top: 24, bottom: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              SectionHeader('Game sessions'),
+              SizedBox(height: 6),
+              Text(
+                'Game outcomes are shown separately from craving-plan outcomes.',
+              ),
+            ],
+          ),
+        );
+      case _RowKind.game:
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: _GameHistoryCard(game: row.game!),
+        );
+    }
+  }
+
+  Widget _buildHeader(BuildContext context, List<CravingLog> items) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          'Your check-ins',
+          style: Theme.of(context).textTheme.headlineLarge,
+        ),
+        const SizedBox(height: 8),
+        const Text('A neutral record of what you noticed and tried.'),
+        const SizedBox(height: 18),
+        // Filters only appear once there is something to filter.
+        if (items.isNotEmpty) ...<Widget>[
+          DropdownMenu<String>(
+            initialSelection: _filter,
+            label: const Text('Show'),
+            expandedInsets: EdgeInsets.zero,
+            onSelected: (value) => setState(() => _filter = value ?? 'all'),
+            dropdownMenuEntries: const <DropdownMenuEntry<String>>[
+              DropdownMenuEntry(value: 'all', label: 'All check-ins'),
+              DropdownMenuEntry(value: 'hunger', label: 'Hunger'),
+              DropdownMenuEntry(value: 'body', label: 'Body'),
+              DropdownMenuEntry(value: 'emotion', label: 'Emotion'),
+              DropdownMenuEntry(value: 'habit', label: 'Habit'),
+              DropdownMenuEntry(value: 'environment', label: 'Environment'),
+              DropdownMenuEntry(value: 'sensory', label: 'Sensory'),
+              DropdownMenuEntry(value: 'games', label: 'Games only'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          DropdownMenu<String>(
+            initialSelection: _range,
+            label: const Text('When'),
+            expandedInsets: EdgeInsets.zero,
+            onSelected: (value) => setState(() => _range = value ?? 'all'),
+            dropdownMenuEntries: const <DropdownMenuEntry<String>>[
+              DropdownMenuEntry(value: 'all', label: 'All time'),
+              DropdownMenuEntry(value: '7', label: 'Last 7 days'),
+              DropdownMenuEntry(value: '30', label: 'Last 30 days'),
+            ],
+          ),
+        ],
+        const SizedBox(height: 20),
+      ],
     );
   }
 
