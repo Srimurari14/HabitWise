@@ -30,6 +30,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   var _edSafetyMode = false;
   var _glucoseSafety = false;
   var _saving = false;
+  String? _saveError;
 
   static const _pages = 7;
 
@@ -73,17 +74,29 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       remindersEnabled: false,
       checkInEnabled: false,
     );
-    await ref.read(repositoryProvider).saveProfile(profile);
-    final gamification = ref.read(gamificationRepositoryProvider);
-    final avatar = await gamification.getAvatar();
-    await gamification.saveAvatar(
-      avatar.copyWith(
-        equipped: <String, String>{
-          ...avatar.equipped,
-          'baseColor': _bodyColour,
-        },
-      ),
-    );
+    try {
+      await ref.read(repositoryProvider).saveProfile(profile);
+      final gamification = ref.read(gamificationRepositoryProvider);
+      final avatar = await gamification.getAvatar();
+      await gamification.saveAvatar(
+        avatar.copyWith(
+          equipped: <String, String>{
+            ...avatar.equipped,
+            'baseColor': _bodyColour,
+          },
+        ),
+      );
+    } on Object catch (error) {
+      // The Continue button is disabled while saving, so a failure here used
+      // to leave the last page of onboarding with no working control at all.
+      // Nobody could get into the app, on the very first run.
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _saveError = 'Could not save your answers: $error';
+      });
+      return;
+    }
     if (mounted) context.go('/home');
   }
 
@@ -170,6 +183,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               ],
             ),
           ),
+          if (_saveError case final error?)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+              child: Text(
+                '$error\n\nYour answers are still here. Continue will try '
+                'again.',
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
           SafeArea(
             top: false,
             minimum: const EdgeInsets.fromLTRB(20, 8, 20, 16),

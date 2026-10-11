@@ -1595,6 +1595,17 @@ class _FollowUpStepState extends State<_FollowUpStep> {
             ),
           ],
           const SizedBox(height: 24),
+          if (widget.state.saveError case final error?) ...<Widget>[
+            Text(
+              error,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Your answers are still here. Saving again will try afresh.',
+            ),
+            const SizedBox(height: 14),
+          ],
           FilledButton(
             onPressed:
                 widget.state.saving ||
@@ -1618,7 +1629,13 @@ class _FollowUpStepState extends State<_FollowUpStep> {
                   },
             child: widget.state.saving
                 ? const CircularProgressIndicator(strokeWidth: 2)
-                : Text(offerMore ? 'Save and stop here' : 'Save check-in'),
+                : Text(
+                    widget.state.saveError != null
+                        ? 'Try saving again'
+                        : offerMore
+                        ? 'Save and stop here'
+                        : 'Save check-in',
+                  ),
           ),
         ],
       ),

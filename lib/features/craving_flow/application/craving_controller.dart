@@ -29,6 +29,7 @@ class CravingFlowState {
     this.backupPlan,
     this.gameRecommendation,
     this.saving = false,
+    this.saveError,
   });
 
   final CravingFlowStep step;
@@ -40,6 +41,10 @@ class CravingFlowState {
   final GameRecommendation? gameRecommendation;
   final bool saving;
 
+  /// Why the check-in could not be written, if it could not. The answers are
+  /// still in memory while this is set, so trying again really does retry.
+  final String? saveError;
+
   CravingFlowState copyWith({
     CravingFlowStep? step,
     CravingSession? session,
@@ -50,6 +55,8 @@ class CravingFlowState {
     GameRecommendation? gameRecommendation,
     bool clearGameRecommendation = false,
     bool? saving,
+    String? saveError,
+    bool clearSaveError = false,
   }) => CravingFlowState(
     step: step ?? this.step,
     session: session ?? this.session,
@@ -61,6 +68,7 @@ class CravingFlowState {
         ? null
         : gameRecommendation ?? this.gameRecommendation,
     saving: saving ?? this.saving,
+    saveError: clearSaveError ? null : saveError ?? this.saveError,
   );
 }
 
@@ -280,15 +288,27 @@ class CravingFlowController extends Notifier<CravingFlowState> {
 
   Future<void> save() async {
     if (state.saving) return;
-    state = state.copyWith(saving: true);
+    state = state.copyWith(saving: true, clearSaveError: true);
     final session = state.session.outcome == null
         ? state.session.copyWith(outcome: CravingOutcome.partlyHelped)
         : state.session;
-    await ref.read(repositoryProvider).commitSession(session);
+    try {
+      await ref.read(repositoryProvider).commitSession(session);
+    } on Object catch (error) {
+      // Without this, a failed write left saving stuck on, which disables the
+      // only button on the screen. Somebody who had just finished answering
+      // everything was left holding a dead screen with the check-in lost.
+      state = state.copyWith(
+        saving: false,
+        saveError: 'Could not save this check-in: $error',
+      );
+      return;
+    }
     state = state.copyWith(
       step: CravingFlowStep.complete,
       session: session,
       saving: false,
+      clearSaveError: true,
     );
   }
 

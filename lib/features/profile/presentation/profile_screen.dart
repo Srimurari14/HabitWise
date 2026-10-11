@@ -643,9 +643,23 @@ class ProfileScreen extends ConsumerWidget {
     // database, so wiping the tables left them firing. Somebody who deleted
     // everything still got an evening buzz from an app they had just emptied.
     final notifications = ref.read(notificationServiceProvider);
-    await notifications.cancelPatternReminder();
-    await notifications.cancelReflectionReminder();
-    await ref.read(repositoryProvider).deleteAllData();
+    try {
+      await notifications.cancelPatternReminder();
+      await notifications.cancelReflectionReminder();
+      await ref.read(repositoryProvider).deleteAllData();
+    } on Object catch (error) {
+      // Confirming twice and then seeing nothing happen is the worst possible
+      // answer here: the person cannot tell whether their data is gone.
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Nothing was deleted. Your data is still here. ($error)',
+          ),
+        ),
+      );
+      return;
+    }
     ref
       ..invalidate(gamificationReadyProvider)
       ..invalidate(avatarProvider)
